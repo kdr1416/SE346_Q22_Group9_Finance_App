@@ -1,0 +1,84 @@
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import AppInput from '../../components/ui/AppInput';
+import AppButton from '../../components/ui/AppButton';
+import { Colors } from '../../constants/Colors';
+import { Typography } from '../../constants/Typography';
+import { Spacing } from '../../constants/Spacing';
+
+export default function LoginScreen({ navigation }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleLogin = () => {
+    if (!/\S+@\S+\.\S+/.test(email)) {
+      setEmailError('Địa chỉ email không hợp lệ');
+      return;
+    }
+    setEmailError('');
+    setLoading(true);
+    setTimeout(() => {
+      setLoading(false);
+      navigation.replace('MainTabs');
+    }, 1000);
+  };
+
+  return (
+    <SafeAreaView style={styles.screen}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+          <View style={styles.header}>
+            <Text style={styles.appName}>Finance</Text>
+            <Text style={styles.tagline}>Kiểm soát tài chính của bạn</Text>
+          </View>
+
+          <AppInput
+            label="Email"
+            placeholder="name@example.com"
+            value={email}
+            onChangeText={(v) => { setEmail(v); if (emailError) setEmailError(''); }}
+            error={emailError}
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
+          <AppInput
+            label="Mật khẩu"
+            placeholder="Nhập mật khẩu"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+          />
+
+          <TouchableOpacity style={styles.forgot}>
+            <Text style={styles.forgotText}>Quên mật khẩu?</Text>
+          </TouchableOpacity>
+
+          <AppButton label="Đăng nhập" onPress={handleLogin} loading={loading} />
+
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>Chưa có tài khoản? </Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Register')}>
+              <Text style={styles.signUp}>Đăng ký</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: Colors.surface },
+  container: { flexGrow: 1, padding: Spacing.lg, justifyContent: 'center' },
+  header: { marginBottom: Spacing.xxxl },
+  appName: { fontSize: Typography.displayMd, fontWeight: Typography.bold, color: Colors.primary, letterSpacing: Typography.tightTracking, marginBottom: Spacing.xs },
+  tagline: { fontSize: Typography.bodyLg, color: Colors.onSurfaceVariant },
+  forgot: { alignSelf: 'flex-end', marginBottom: Spacing.xl, marginTop: -Spacing.sm },
+  forgotText: { fontSize: Typography.bodyMd, color: Colors.primary, fontWeight: Typography.medium },
+  footer: { flexDirection: 'row', justifyContent: 'center', marginTop: Spacing.lg },
+  footerText: { fontSize: Typography.bodyMd, color: Colors.onSurfaceVariant },
+  signUp: { fontSize: Typography.bodyMd, color: Colors.primary, fontWeight: Typography.semiBold },
+});
