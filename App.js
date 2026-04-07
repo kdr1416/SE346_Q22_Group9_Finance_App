@@ -35,12 +35,14 @@ import BudgetsScreen from './screens/tabs/BudgetsScreen';
 import PotsScreen from './screens/tabs/PotsScreen';
 import ProfileScreen from './screens/tabs/ProfileScreen';
 
+// Stack Screens (không phải tab)
+import BillsScreen from './screens/tabs/BillsScreen';
+
 // Design Tokens
 import { Colors } from './constants/Colors';
 import { Typography } from './constants/Typography';
 import { Spacing } from './constants/Spacing';
 
-// Giữ splash screen cho đến khi font load xong
 SplashScreen.preventAutoHideAsync();
 
 const Stack = createStackNavigator();
@@ -146,18 +148,23 @@ export default function App() {
     }
   }, [fontsLoaded, fontError]);
 
-  // Chưa load xong font thì không render gì
-  if (!fontsLoaded && !fontError) {
-    return null;
-  }
+  if (!fontsLoaded && !fontError) return null;
 
   return (
     <SafeAreaProvider>
       <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
         <NavigationContainer>
           <Stack.Navigator screenOptions={{ headerShown: false }}>
+            {/* Auth */}
             <Stack.Screen name="Auth" component={AuthStack} />
+            {/* Main Tabs */}
             <Stack.Screen name="MainTabs" component={MainTabs} />
+            {/* Stack screens (modal-style, không nằm trong tab) */}
+            <Stack.Screen
+              name="Bills"
+              component={BillsScreen}
+              options={{ presentation: 'card' }}
+            />
           </Stack.Navigator>
         </NavigationContainer>
         <StatusBar style="dark" backgroundColor={Colors.surface} />

@@ -27,9 +27,10 @@ function SectionHeader({ title, onSeeAll = null }) {
 
 export default function OverviewScreen({ navigation }) {
   const {
-    user, summary, recentTransactions,
-    recentBudgets, bills,
-    goToTransactions, goToBudgets,
+    user, summary,
+    recentTransactions, recentBudgets,
+    previewBills, togglePaid,
+    goToTransactions, goToBudgets, goToBills,
   } = useOverview(navigation);
 
   return (
@@ -55,11 +56,20 @@ export default function OverviewScreen({ navigation }) {
           style={{ marginBottom: Spacing.xl }}
         />
 
-        {/* Hóa đơn */}
+        {/* Hóa đơn — có nút "Xem tất cả" + toggle đã trả */}
         <View style={styles.section}>
-          <SectionHeader title="Hóa đơn tháng này" />
+          <SectionHeader title="Hóa đơn tháng này" onSeeAll={goToBills} />
           <View style={styles.card}>
-            {bills.map(b => <BillItem key={b.id} item={b} />)}
+            {previewBills.length > 0 ? (
+              previewBills.map(b => (
+                <BillItem key={b.id} item={b} onToggle={togglePaid} />
+              ))
+            ) : (
+              <View style={styles.allPaid}>
+                <Ionicons name="checkmark-circle" size={32} color={Colors.secondary} />
+                <Text style={styles.allPaidText}>Tất cả đã thanh toán! 🎉</Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -141,5 +151,15 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04,
     shadowRadius: 16,
     elevation: 1,
+  },
+  allPaid: {
+    alignItems: 'center',
+    paddingVertical: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  allPaidText: {
+    fontFamily: Typography.fontBody_Medium,
+    fontSize: Typography.bodyMd,
+    color: Colors.secondary,
   },
 });
