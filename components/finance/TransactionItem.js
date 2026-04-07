@@ -4,8 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
 import { Spacing } from '../../constants/Spacing';
-
-const fmtAmount = (amount, type) => `${type === 'income' ? '+' : '-'}$${amount.toFixed(2)}`;
+import { formatTransaction } from '../../utils/currency';
 
 const fmtDate = (dateString) => {
   const date = new Date(dateString);
@@ -26,8 +25,8 @@ export default function TransactionItem({ item }) {
         <Text style={styles.title}>{item.title}</Text>
         <Text style={styles.meta}>{item.category} · {fmtDate(item.date)}</Text>
       </View>
-      <Text style={[styles.amount, isIncome ? styles.income : styles.expense]}>
-        {fmtAmount(item.amount, item.type)}
+      <Text style={[styles.amount, { color: isIncome ? Colors.secondary : Colors.onSurface }]}>
+        {formatTransaction(item.amount, item.type)}
       </Text>
     </View>
   );

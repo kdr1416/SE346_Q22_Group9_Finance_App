@@ -1,51 +1,113 @@
 import React, { useState } from 'react';
-import { View, TextInput, Text, StyleSheet } from 'react-native';
+import { View, TextInput, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
 import { Spacing } from '../../constants/Spacing';
 
-export default function AppInput({ label, error, containerStyle, ...props }) {
+export default function AppInput({ 
+  label, 
+  error, 
+  iconName, 
+  secureTextEntry, 
+  ...props 
+}) {
   const [isFocused, setIsFocused] = useState(false);
+  const [isPasswordHidden, setIsPasswordHidden] = useState(secureTextEntry);
 
   return (
-    <View style={[styles.container, containerStyle]}>
-      <Text style={styles.label}>{label}</Text>
-      <TextInput
-        style={styles.input}
-        onFocus={() => setIsFocused(true)}
-        onBlur={() => setIsFocused(false)}
-        placeholderTextColor={Colors.onSurfaceVariant}
-        {...props}
-      />
-      <View style={[styles.bottomLine, isFocused && styles.focused, !!error && styles.errorLine]} />
-      {!!error && <Text style={styles.errorText}>{error}</Text>}
+    <View style={styles.container}>
+      {label && <Text style={styles.label}>{label}</Text>}
+      
+      <View 
+        style={[
+          styles.inputContainer,
+          isFocused && styles.inputFocused,
+          error && styles.inputError
+        ]}
+      >
+        {iconName && (
+          <Ionicons 
+            name={iconName} 
+            size={20} 
+            color={error ? Colors.error : (isFocused ? Colors.primary : Colors.tertiary)} 
+            style={styles.icon}
+          />
+        )}
+        
+        <TextInput
+          style={[styles.input, { paddingLeft: iconName ? 0 : Spacing.md }]}
+          placeholderTextColor={Colors.tertiary}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
+          secureTextEntry={isPasswordHidden}
+          {...props}
+        />
+
+        {secureTextEntry && (
+          <TouchableOpacity 
+            style={styles.eyeIcon} 
+            onPress={() => setIsPasswordHidden(!isPasswordHidden)}
+          >
+            <Ionicons 
+              name={isPasswordHidden ? 'eye-off-outline' : 'eye-outline'} 
+              size={20} 
+              color={Colors.tertiary} 
+            />
+          </TouchableOpacity>
+        )}
+      </View>
+      
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { marginBottom: Spacing.lg },
+  container: {
+    marginBottom: Spacing.md,
+  },
   label: {
-    fontFamily: Typography.fontBody_Regular,
-    fontSize: Typography.labelMd,
-    color: Colors.onSurfaceVariant,
+    fontFamily: Typography.fontBody_Medium,
+    fontSize: Typography.bodySm,
+    color: Colors.onSurface,
     marginBottom: Spacing.xs,
   },
-  input: {
-    fontFamily: Typography.fontBody_Regular,
-    fontSize: Typography.bodyLg,
-    color: Colors.onSurface,
-    paddingVertical: Spacing.base,
-    paddingHorizontal: 0,
-    backgroundColor: Colors.transparent,
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surfaceContainerLowest,
+    borderWidth: 1.5,
+    borderColor: Colors.outlineVariant,
+    borderRadius: Spacing.radiusLg,
+    minHeight: 52,
   },
-  bottomLine: { height: 1, backgroundColor: Colors.outlineVariant, opacity: 0.3 },
-  focused: { backgroundColor: Colors.primary, opacity: 1 },
-  errorLine: { backgroundColor: Colors.error, opacity: 1 },
+  inputFocused: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.surfaceContainerLowest,
+  },
+  inputError: {
+    borderColor: Colors.error,
+  },
+  icon: {
+    paddingHorizontal: Spacing.md,
+  },
+  eyeIcon: {
+    paddingHorizontal: Spacing.md,
+  },
+  input: {
+    flex: 1,
+    fontFamily: Typography.fontBody_Regular,
+    fontSize: Typography.bodyMd,
+    color: Colors.onSurface,
+    paddingVertical: Spacing.md,
+    minHeight: 52,
+  },
   errorText: {
     fontFamily: Typography.fontBody_Regular,
-    fontSize: Typography.labelSm,
+    fontSize: Typography.bodySm,
     color: Colors.error,
     marginTop: Spacing.xs,
+    marginLeft: 4,
   },
 });

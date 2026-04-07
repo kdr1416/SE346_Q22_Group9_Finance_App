@@ -5,20 +5,21 @@ import { Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
 import { Spacing } from '../../constants/Spacing';
 import ProgressBar from '../ui/ProgressBar';
+import { formatVND } from '../../utils/currency';
 
-export default function PotItem({ item }) {
+export default function PotItem({ item, style }) {
   const progress = item.savedAmount / item.targetAmount;
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, style]}>
       <View style={styles.row}>
         <View style={[styles.icon, { backgroundColor: item.color + '20' }]}>
           <Ionicons name={item.iconName ?? 'wallet-outline'} size={20} color={item.color} />
         </View>
         <View style={styles.info}>
           <Text style={styles.name}>{item.name}</Text>
-          <Text style={styles.target}>Mục tiêu: ${item.targetAmount.toLocaleString()}</Text>
+          <Text style={styles.target}>Mục tiêu: {formatVND(item.targetAmount)}</Text>
         </View>
-        <Text style={styles.saved}>${item.savedAmount.toLocaleString()}</Text>
+        <Text style={styles.saved}>{formatVND(item.savedAmount)}</Text>
       </View>
       <ProgressBar progress={progress} color={item.color} style={{ marginBottom: Spacing.xs }} />
       <Text style={styles.percent}>{Math.round(progress * 100)}% hoàn thành</Text>

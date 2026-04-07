@@ -7,6 +7,7 @@ import { Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
 import { Spacing } from '../../constants/Spacing';
 import usePots from '../../hooks/tabs/usePots';
+import { formatVND } from '../../utils/currency';
 
 export default function PotsScreen() {
   const { pots, totalSaved, totalTarget, handleAddPot } = usePots();
@@ -21,8 +22,8 @@ export default function PotsScreen() {
         {/* Tóm tắt */}
         <View style={styles.summaryCard}>
           <Text style={styles.sumLabel}>Tổng đã tiết kiệm</Text>
-          <Text style={styles.sumAmount}>${totalSaved.toLocaleString()}</Text>
-          <Text style={styles.sumOf}>trên ${totalTarget.toLocaleString()} mục tiêu</Text>
+          <Text style={styles.sumAmount}>{formatVND(totalSaved)}</Text>
+          <Text style={styles.sumOf}>trên {formatVND(totalTarget)} mục tiêu</Text>
         </View>
 
         {/* Danh sách */}

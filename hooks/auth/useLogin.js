@@ -1,49 +1,73 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
 
-/**
- * useLogin — quản lý toàn bộ logic màn hình đăng nhập
- * @param {object} navigation - React Navigation navigation prop
- */
 export default function useLogin(navigation) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [generalError, setGeneralError] = useState('');
   const [loading, setLoading] = useState(false);
+  const { signIn } = useAuth();
 
   const validateEmail = (value) => /\S+@\S+\.\S+/.test(value);
 
   const handleEmailChange = (value) => {
     setEmail(value);
-    // Xóa lỗi ngay khi user bắt đầu gõ lại
-    if (emailError) setEmailError('');
+    if (!validateEmail(value)) {
+      setEmailError('Email không hợp lệ');
+    } else {
+      setEmailError('');
+    }
   };
 
-  const handleLogin = () => {
-    if (!validateEmail(email)) {
-      setEmailError('Địa chỉ email không hợp lệ');
-      return;
+  const handlePasswordChange = (value) => {
+    setPassword(value);
+    if (value.length < 6) {
+      setPasswordError('Mật khẩu tối thiểu 6 ký tự');
+    } else {
+      setPasswordError('');
     }
-    setEmailError('');
+  };
+
+  const handleLogin = async () => {
+    let isValid = true;
+    if (!validateEmail(email)) {
+      setEmailError('Email không hợp lệ');
+      isValid = false;
+    }
+    if (password.length < 6) {
+      setPasswordError('Mật khẩu tối thiểu 6 ký tự');
+      isValid = false;
+    }
+
+    if (!isValid) return;
+    setGeneralError('');
     setLoading(true);
 
-    // TODO: Thay bằng API call thực tế (Firebase Auth, v.v.)
-    setTimeout(() => {
+    try {
+      await signIn(email.trim(), password);
+    } catch (error) {
+      let msg = error.message;
+      if (msg.includes('Invalid login')) msg = 'Email hoặc mật khẩu không chính xác';
+      else if (msg.includes('rate limit')) msg = 'Thử lại quá nhiều lần. Vui lòng đợi lát nhé';
+      setGeneralError(msg);
+    } finally {
       setLoading(false);
-      navigation.replace('MainTabs');
-    }, 1000);
+    }
   };
 
   const goToRegister = () => navigation.navigate('Register');
 
   return {
-    // State
     email,
     password,
     emailError,
+    passwordError,
+    generalError,
     loading,
-    // Handlers
     handleEmailChange,
-    setPassword,
+    handlePasswordChange,
     handleLogin,
     goToRegister,
   };

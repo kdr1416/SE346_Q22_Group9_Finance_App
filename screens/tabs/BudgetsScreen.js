@@ -6,6 +6,7 @@ import { Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
 import { Spacing } from '../../constants/Spacing';
 import useBudgets from '../../hooks/tabs/useBudgets';
+import { formatVND } from '../../utils/currency';
 
 export default function BudgetsScreen() {
   const { budgets, totalSpent, totalLimit } = useBudgets();
@@ -19,9 +20,9 @@ export default function BudgetsScreen() {
 
         {/* Tóm tắt */}
         <View style={styles.summaryCard}>
-          <Text style={styles.sumLabel}>Đã chi tháng này</Text>
-          <Text style={styles.sumAmount}>${totalSpent.toFixed(2)}</Text>
-          <Text style={styles.sumOf}>trên ${totalLimit.toFixed(0)} ngân sách</Text>
+          <Text style={styles.sumLabel}>Tổng chi tiêu</Text>
+          <Text style={styles.sumAmount}>{formatVND(totalSpent)}</Text>
+          <Text style={styles.sumOf}>trên {formatVND(totalLimit)} ngân sách</Text>
         </View>
 
         {/* Chi tiết */}

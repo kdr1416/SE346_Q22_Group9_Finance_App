@@ -4,67 +4,65 @@ import { Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
 import { Spacing } from '../../constants/Spacing';
 
-export default function AppButton({
-  label,
-  onPress,
-  variant = 'primary',
-  loading = false,
-  disabled = false,
-  fullWidth = true,
-  style,
+export default function AppButton({ 
+  label, 
+  onPress, 
+  variant = 'primary', 
+  loading = false, 
+  style 
 }) {
-  const containerStyle = [
-    styles.base,
-    variant === 'primary' && styles.primary,
-    variant === 'secondary' && styles.secondary,
-    variant === 'ghost' && styles.ghost,
-    fullWidth && styles.fullWidth,
-    (disabled || loading) && styles.disabled,
-    style,
-  ];
-
-  const textStyle = [
-    styles.label,
-    variant === 'primary' && styles.primaryLabel,
-    variant === 'secondary' && styles.secondaryLabel,
-    variant === 'ghost' && styles.ghostLabel,
-  ];
+  const isPrimary = variant === 'primary';
 
   return (
     <TouchableOpacity
+      style={[
+        styles.button,
+        isPrimary ? styles.primary : styles.secondary,
+        style
+      ]}
       onPress={onPress}
-      disabled={disabled || loading}
+      disabled={loading}
       activeOpacity={0.8}
-      style={containerStyle}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'primary' ? Colors.onPrimary : Colors.primary} />
+        <ActivityIndicator color={isPrimary ? Colors.white : Colors.primary} />
       ) : (
-        <Text style={textStyle}>{label}</Text>
+        <Text style={[styles.text, isPrimary ? styles.textPrimary : styles.textSecondary]}>
+          {label}
+        </Text>
       )}
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
-  base: {
-    height: 52,
-    borderRadius: Spacing.radiusFull,
+  button: {
+    paddingVertical: 16,
+    paddingHorizontal: Spacing.xl,
+    borderRadius: Spacing.radiusLg,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: Spacing.xl,
+    width: '100%',
   },
-  fullWidth: { width: '100%' },
-  primary: { backgroundColor: Colors.primary },
-  secondary: { backgroundColor: Colors.primaryContainer },
-  ghost: { backgroundColor: Colors.transparent },
-  label: {
+  primary: {
+    backgroundColor: Colors.primary,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  secondary: {
+    backgroundColor: Colors.surfaceContainerHighest,
+  },
+  text: {
     fontFamily: Typography.fontBody_SemiBold,
-    fontSize: Typography.titleSm,
-    letterSpacing: 0.1,
+    fontSize: Typography.bodyMd,
   },
-  primaryLabel: { color: Colors.onPrimary },
-  secondaryLabel: { color: Colors.primary },
-  ghostLabel: { color: Colors.primary },
-  disabled: { opacity: 0.45 },
+  textPrimary: {
+    color: Colors.white,
+  },
+  textSecondary: {
+    color: Colors.onSurface,
+  },
 });

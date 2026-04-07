@@ -1,27 +1,33 @@
-import { mockUser } from '../../data/mockData';
+import { useAuth } from '../../contexts/AuthContext';
+import { Alert } from 'react-native';
 
-/**
- * useProfile — quản lý logic màn hình hồ sơ
- * @param {object} navigation - React Navigation navigation prop
- */
-export default function useProfile(navigation) {
-  const handleLogout = () => {
-    // TODO: Thêm logic xóa token / session khi có Auth thực
-    navigation.replace('Auth');
+export default function useProfile() {
+  const { profile, user, signOut } = useAuth();
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      // Auth Guard in App.js will reroute automatically
+    } catch (error) {
+      console.error('Lỗi đăng xuất:', error);
+      Alert.alert('Lỗi', 'Không thể đăng xuất, vui lòng thử lại.');
+    }
   };
 
   const handleEditProfile = () => {
-    // TODO: navigate đến màn hình chỉnh sửa hồ sơ
     console.log('Chỉnh sửa hồ sơ');
   };
 
   const handleChangePassword = () => {
-    // TODO: navigate đến màn hình đổi mật khẩu
     console.log('Đổi mật khẩu');
   };
 
   return {
-    user: mockUser,
+    // Thay vì dùng mockUser, dùng thông tin profile thật từ DB
+    user: profile ? {
+      name: profile.name,
+      email: user?.email,
+    } : { name: 'Người dùng', email: '' },
     handleLogout,
     handleEditProfile,
     handleChangePassword,

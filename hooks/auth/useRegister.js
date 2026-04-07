@@ -1,60 +1,79 @@
 import { useState } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
 
-/**
- * useRegister — quản lý toàn bộ logic màn hình đăng ký
- * @param {object} navigation - React Navigation navigation prop
- */
-export default function useRegister(navigation) {
+export default function useRegister({ navigation }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [nameError, setNameError] = useState('');
   const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [generalError, setGeneralError] = useState('');
   const [loading, setLoading] = useState(false);
+  
+  const { signUp } = useAuth();
+
+  const validateEmail = (value) => /\S+@\S+\.\S+/.test(value);
+
+  const handleNameChange = (val) => {
+    setName(val);
+    if (!val.trim()) setNameError('Vui lòng nhập họ tên');
+    else setNameError('');
+  };
+
+  const handleEmailChange = (val) => {
+    setEmail(val);
+    if (!validateEmail(val)) setEmailError('Email không hợp lệ');
+    else setEmailError('');
+  };
+
+  const handlePasswordChange = (val) => {
+    setPassword(val);
+    if (val.length < 6) setPasswordError('Mật khẩu tối thiểu 6 ký tự');
+    else setPasswordError('');
+  };
 
   const validate = () => {
     let valid = true;
     if (!name.trim()) {
-      setNameError('Vui lòng nhập họ và tên');
+      setNameError('Vui lòng nhập họ tên');
       valid = false;
-    } else {
-      setNameError('');
     }
-    if (!/\S+@\S+\.\S+/.test(email)) {
-      setEmailError('Địa chỉ email không hợp lệ');
+    if (!validateEmail(email)) {
+      setEmailError('Email không hợp lệ');
       valid = false;
-    } else {
-      setEmailError('');
+    }
+    if (password.length < 6) {
+      setPasswordError('Mật khẩu tối thiểu 6 ký tự');
+      valid = false;
     }
     return valid;
   };
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     if (!validate()) return;
+    setGeneralError('');
     setLoading(true);
 
-    // TODO: Thay bằng API call thực tế (Firebase Auth, v.v.)
-    setTimeout(() => {
+    try {
+      await signUp(name.trim(), email.trim(), password);
+    } catch (error) {
+      let msg = error.message;
+      if (msg.includes('already registered')) msg = 'Tài khoản này đã tồn tại';
+      else if (msg.includes('invalid')) msg = 'Email không hợp lệ';
+      setGeneralError(msg);
+    } finally {
       setLoading(false);
-      navigation.replace('MainTabs');
-    }, 1000);
+    }
   };
 
   const goBack = () => navigation.goBack();
 
   return {
-    // State
-    name,
-    email,
-    password,
-    nameError,
-    emailError,
+    name, email, password,
+    nameError, emailError, passwordError, generalError,
     loading,
-    // Handlers
-    setName,
-    setEmail,
-    setPassword,
-    handleRegister,
-    goBack,
+    handleNameChange, handleEmailChange, handlePasswordChange,
+    handleRegister, goBack,
   };
 }

@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { View } from 'react-native';
+import { View, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -24,27 +24,23 @@ import {
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
 
-// Auth Screens
+// Screens
 import LoginScreen from './screens/auth/LoginScreen';
 import RegisterScreen from './screens/auth/RegisterScreen';
-
-// Tab Screens
 import OverviewScreen from './screens/tabs/OverviewScreen';
 import TransactionsScreen from './screens/tabs/TransactionsScreen';
 import BudgetsScreen from './screens/tabs/BudgetsScreen';
 import PotsScreen from './screens/tabs/PotsScreen';
 import ProfileScreen from './screens/tabs/ProfileScreen';
-
-// Stack Screens (không phải tab)
 import BillsScreen from './screens/tabs/BillsScreen';
 
-// Design Tokens
+// Design Tokens & Auth
 import { Colors } from './constants/Colors';
 import { Typography } from './constants/Typography';
 import { Spacing } from './constants/Spacing';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 SplashScreen.preventAutoHideAsync();
-
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
@@ -77,42 +73,27 @@ function MainTabs() {
       <Tab.Screen
         name="Overview"
         component={OverviewScreen}
-        options={{
-          title: 'Tổng quan',
-          tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
-        }}
+        options={{ title: 'Tổng quan', tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} /> }}
       />
       <Tab.Screen
         name="Transactions"
         component={TransactionsScreen}
-        options={{
-          title: 'Giao dịch',
-          tabBarIcon: ({ color, size }) => <Ionicons name="swap-vertical-outline" size={size} color={color} />,
-        }}
+        options={{ title: 'Giao dịch', tabBarIcon: ({ color, size }) => <Ionicons name="swap-vertical-outline" size={size} color={color} /> }}
       />
       <Tab.Screen
         name="Budgets"
         component={BudgetsScreen}
-        options={{
-          title: 'Ngân sách',
-          tabBarIcon: ({ color, size }) => <Ionicons name="pie-chart-outline" size={size} color={color} />,
-        }}
+        options={{ title: 'Ngân sách', tabBarIcon: ({ color, size }) => <Ionicons name="pie-chart-outline" size={size} color={color} /> }}
       />
       <Tab.Screen
         name="Pots"
         component={PotsScreen}
-        options={{
-          title: 'Tiết kiệm',
-          tabBarIcon: ({ color, size }) => <Ionicons name="wallet-outline" size={size} color={color} />,
-        }}
+        options={{ title: 'Tiết kiệm', tabBarIcon: ({ color, size }) => <Ionicons name="wallet-outline" size={size} color={color} /> }}
       />
       <Tab.Screen
         name="Profile"
         component={ProfileScreen}
-        options={{
-          title: 'Hồ sơ',
-          tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} />,
-        }}
+        options={{ title: 'Hồ sơ', tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} /> }}
       />
     </Tab.Navigator>
   );
@@ -128,18 +109,40 @@ function AuthStack() {
   );
 }
 
-// ==================== APP ENTRY ====================
+// ==================== ROOT NAVIGATOR CÓ AUTH GUARD ====================
+function RootNavigator() {
+  const { session, isLoading } = useAuth();
+  
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.surface }}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
+    );
+  }
+
+  // Tự động rẽ nhánh tùy theo session đăng nhập
+  return (
+    <NavigationContainer>
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        {!session ? (
+          <Stack.Screen name="Auth" component={AuthStack} />
+        ) : (
+          <>
+            <Stack.Screen name="MainTabs" component={MainTabs} />
+            <Stack.Screen name="Bills" component={BillsScreen} options={{ presentation: 'card' }} />
+          </>
+        )}
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+}
+
+// ==================== APP ENTRY CÓ APP LOADER ====================
 export default function App() {
   const [fontsLoaded, fontError] = useFonts({
-    Manrope_400Regular,
-    Manrope_500Medium,
-    Manrope_600SemiBold,
-    Manrope_700Bold,
-    Manrope_800ExtraBold,
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
+    Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold,
+    Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold,
   });
 
   const onLayoutRootView = useCallback(async () => {
@@ -153,20 +156,9 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
-        <NavigationContainer>
-          <Stack.Navigator screenOptions={{ headerShown: false }}>
-            {/* Auth */}
-            <Stack.Screen name="Auth" component={AuthStack} />
-            {/* Main Tabs */}
-            <Stack.Screen name="MainTabs" component={MainTabs} />
-            {/* Stack screens (modal-style, không nằm trong tab) */}
-            <Stack.Screen
-              name="Bills"
-              component={BillsScreen}
-              options={{ presentation: 'card' }}
-            />
-          </Stack.Navigator>
-        </NavigationContainer>
+        <AuthProvider>
+          <RootNavigator />
+        </AuthProvider>
         <StatusBar style="dark" backgroundColor={Colors.surface} />
       </View>
     </SafeAreaProvider>

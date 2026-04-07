@@ -1,21 +1,16 @@
 import { useState, useCallback, useMemo } from 'react';
-
-const INITIAL_BILLS = [
-  { id: 'bill1', title: 'Netflix', dueDate: 'Ngày 1', amount: 12.99, isPaid: false, iconName: 'tv-outline' },
-  { id: 'bill2', title: 'Internet', dueDate: 'Ngày 3', amount: 55.00, isPaid: false, iconName: 'wifi-outline' },
-  { id: 'bill3', title: 'Điện', dueDate: 'Ngày 15', amount: 85.00, isPaid: false, iconName: 'flash-outline' },
-  { id: 'bill4', title: 'Nước', dueDate: 'Ngày 18', amount: 30.00, isPaid: false, iconName: 'water-outline' },
-  { id: 'bill5', title: 'Spotify', dueDate: 'Ngày 20', amount: 9.99, isPaid: true, iconName: 'musical-notes-outline' },
-  { id: 'bill6', title: 'Bảo hiểm', dueDate: 'Ngày 25', amount: 120.00, isPaid: false, iconName: 'shield-checkmark-outline' },
-];
+import { mockBills } from '../../data/mockData';
 
 /**
  * useBills — quản lý danh sách hóa đơn và trạng thái đã thanh toán
+ * Dữ liệu ban đầu lấy từ mockData.js
+ * TODO: Khi có backend → thay mockBills bằng API call (useEffect + fetch)
  */
 export default function useBills() {
-  const [bills, setBills] = useState(INITIAL_BILLS);
+  // Khởi tạo từ mockData, dùng state để toggle isPaid
+  const [bills, setBills] = useState(mockBills);
 
-  /** Đánh dấu / bỏ đánh dấu đã trả */
+  /** Đánh dấu / bỏ đánh dấu đã thanh toán */
   const togglePaid = useCallback((id) => {
     setBills((prev) =>
       prev.map((bill) =>
@@ -24,6 +19,7 @@ export default function useBills() {
     );
   }, []);
 
+  // Tính toán derived state bằng useMemo để tránh re-compute mỗi render
   const unpaid = useMemo(() => bills.filter((b) => !b.isPaid), [bills]);
   const paid = useMemo(() => bills.filter((b) => b.isPaid), [bills]);
 
@@ -35,6 +31,10 @@ export default function useBills() {
     () => paid.reduce((sum, b) => sum + b.amount, 0),
     [paid]
   );
+  const totalAll = useMemo(
+    () => bills.reduce((sum, b) => sum + b.amount, 0),
+    [bills]
+  );
 
   return {
     bills,
@@ -42,6 +42,7 @@ export default function useBills() {
     paid,
     totalDue,
     totalPaid,
+    totalAll,
     togglePaid,
   };
 }

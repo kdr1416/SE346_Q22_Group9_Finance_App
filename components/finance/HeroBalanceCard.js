@@ -3,14 +3,13 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
 import { Spacing } from '../../constants/Spacing';
-
-const fmt = (n) => `$${n.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+import { formatVND } from '../../utils/currency';
 
 export default function HeroBalanceCard({ totalBalance, income, expenses, style }) {
   return (
     <View style={[styles.card, style]}>
       <Text style={styles.label}>Số dư hiện tại</Text>
-      <Text style={styles.balance}>{fmt(totalBalance)}</Text>
+      <Text style={styles.balance}>{formatVND(totalBalance)}</Text>
 
       <View style={styles.divider} />
 
@@ -19,14 +18,14 @@ export default function HeroBalanceCard({ totalBalance, income, expenses, style 
           <View style={styles.dot} />
           <View>
             <Text style={styles.statLabel}>Thu nhập</Text>
-            <Text style={styles.statValue}>{fmt(income)}</Text>
+            <Text style={styles.statValue}>{formatVND(income)}</Text>
           </View>
         </View>
         <View style={styles.statItem}>
           <View style={[styles.dot, { backgroundColor: Colors.error }]} />
           <View>
             <Text style={styles.statLabel}>Chi tiêu</Text>
-            <Text style={[styles.statValue, { color: Colors.error }]}>{fmt(expenses)}</Text>
+            <Text style={[styles.statValue, { color: Colors.error }]}>{formatVND(expenses)}</Text>
           </View>
         </View>
       </View>

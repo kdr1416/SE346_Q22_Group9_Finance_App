@@ -7,6 +7,7 @@ import { Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
 import { Spacing } from '../../constants/Spacing';
 import useBills from '../../hooks/tabs/useBills';
+import { formatVND } from '../../utils/currency';
 
 export default function BillsScreen({ navigation }) {
   const { bills, unpaid, paid, totalDue, totalPaid, togglePaid } = useBills();
@@ -24,19 +25,19 @@ export default function BillsScreen({ navigation }) {
 
       {/* Tóm tắt */}
       <View style={styles.summaryRow}>
-        <View style={[styles.summaryCard, { backgroundColor: Colors.error + '15' }]}>
-          <Text style={styles.sumLabel}>Chưa thanh toán</Text>
-          <Text style={[styles.sumAmount, { color: Colors.error }]}>
-            ${totalDue.toFixed(2)}
-          </Text>
-          <Text style={styles.sumCount}>{unpaid.length} hóa đơn</Text>
-        </View>
-        <View style={[styles.summaryCard, { backgroundColor: Colors.secondary + '15' }]}>
-          <Text style={styles.sumLabel}>Đã thanh toán</Text>
-          <Text style={[styles.sumAmount, { color: Colors.secondary }]}>
-            ${totalPaid.toFixed(2)}
-          </Text>
-          <Text style={styles.sumCount}>{paid.length} hóa đơn</Text>
+        <View style={styles.summaryGrid}>
+          <View style={styles.sumCard}>
+            <Text style={styles.sumLabel}>Chưa trả ({unpaid.length})</Text>
+            <Text style={[styles.sumValue, { color: Colors.error }]}>
+              {formatVND(totalDue)}
+            </Text>
+          </View>
+          <View style={styles.sumCard}>
+            <Text style={styles.sumLabel}>Đã trả ({paid.length})</Text>
+            <Text style={[styles.sumValue, { color: Colors.secondary }]}>
+              {formatVND(totalPaid)}
+            </Text>
+          </View>
         </View>
       </View>
 

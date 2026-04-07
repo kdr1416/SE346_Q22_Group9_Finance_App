@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
 import { Spacing } from '../../constants/Spacing';
+import { formatVND } from '../../utils/currency';
 
 export default function BillItem({ item, onToggle = null, compact = false }) {
   return (
@@ -26,9 +27,9 @@ export default function BillItem({ item, onToggle = null, compact = false }) {
       </View>
 
       {/* Số tiền + Toggle */}
-      <View style={styles.right}>
-        <Text style={[styles.amount, item.isPaid && styles.amountPaid]}>
-          ${item.amount.toFixed(2)}
+      <View style={styles.amountWrap}>
+        <Text style={[styles.amount, item.isPaid && { color: Colors.secondary }]}>
+          {formatVND(item.amount)}
         </Text>
         {onToggle && (
           <TouchableOpacity
