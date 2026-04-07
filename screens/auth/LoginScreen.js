@@ -1,35 +1,27 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
+import React from 'react';
+import {
+  View, Text, StyleSheet, ScrollView,
+  TouchableOpacity, KeyboardAvoidingView, Platform,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AppInput from '../../components/ui/AppInput';
 import AppButton from '../../components/ui/AppButton';
 import { Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
 import { Spacing } from '../../constants/Spacing';
+import useLogin from '../../hooks/auth/useLogin';
 
 export default function LoginScreen({ navigation }) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [emailError, setEmailError] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const handleLogin = () => {
-    if (!/\S+@\S+\.\S+/.test(email)) {
-      setEmailError('Địa chỉ email không hợp lệ');
-      return;
-    }
-    setEmailError('');
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      navigation.replace('MainTabs');
-    }, 1000);
-  };
+  const {
+    email, password, emailError, loading,
+    handleEmailChange, setPassword, handleLogin, goToRegister,
+  } = useLogin(navigation);
 
   return (
     <SafeAreaView style={styles.screen}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+
           <View style={styles.header}>
             <Text style={styles.appName}>Finance</Text>
             <Text style={styles.tagline}>Kiểm soát tài chính của bạn</Text>
@@ -39,7 +31,7 @@ export default function LoginScreen({ navigation }) {
             label="Email"
             placeholder="name@example.com"
             value={email}
-            onChangeText={(v) => { setEmail(v); if (emailError) setEmailError(''); }}
+            onChangeText={handleEmailChange}
             error={emailError}
             keyboardType="email-address"
             autoCapitalize="none"
@@ -60,10 +52,11 @@ export default function LoginScreen({ navigation }) {
 
           <View style={styles.footer}>
             <Text style={styles.footerText}>Chưa có tài khoản? </Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Register')}>
+            <TouchableOpacity onPress={goToRegister}>
               <Text style={styles.signUp}>Đăng ký</Text>
             </TouchableOpacity>
           </View>
+
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

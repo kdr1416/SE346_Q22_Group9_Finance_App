@@ -9,7 +9,7 @@ import BillItem from '../../components/finance/BillItem';
 import { Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
 import { Spacing } from '../../constants/Spacing';
-import { mockSummary, mockTransactions, mockBudgets, mockBills, mockUser } from '../../data/mockData';
+import useOverview from '../../hooks/tabs/useOverview';
 
 function SectionHeader({ title, onSeeAll = null }) {
   return (
@@ -26,45 +26,56 @@ function SectionHeader({ title, onSeeAll = null }) {
 }
 
 export default function OverviewScreen({ navigation }) {
+  const {
+    user, summary, recentTransactions,
+    recentBudgets, bills,
+    goToTransactions, goToBudgets,
+  } = useOverview(navigation);
+
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* App Header */}
+
+        {/* Header */}
         <View style={styles.appHeader}>
           <View>
             <Text style={styles.greeting}>Chào buổi sáng 👋</Text>
-            <Text style={styles.userName}>{mockUser.name}</Text>
+            <Text style={styles.userName}>{user.name}</Text>
           </View>
           <TouchableOpacity style={styles.notif}>
             <Ionicons name="notifications-outline" size={22} color={Colors.onSurface} />
           </TouchableOpacity>
         </View>
 
+        {/* Balance Card */}
         <HeroBalanceCard
-          totalBalance={mockSummary.totalBalance}
-          income={mockSummary.income}
-          expenses={mockSummary.expenses}
+          totalBalance={summary.totalBalance}
+          income={summary.income}
+          expenses={summary.expenses}
           style={{ marginBottom: Spacing.xl }}
         />
 
+        {/* Hóa đơn */}
         <View style={styles.section}>
           <SectionHeader title="Hóa đơn tháng này" />
           <View style={styles.card}>
-            {mockBills.map(b => <BillItem key={b.id} item={b} />)}
+            {bills.map(b => <BillItem key={b.id} item={b} />)}
           </View>
         </View>
 
+        {/* Ngân sách */}
         <View style={styles.section}>
-          <SectionHeader title="Ngân sách" onSeeAll={() => navigation.navigate('Budgets')} />
+          <SectionHeader title="Ngân sách" onSeeAll={goToBudgets} />
           <View style={styles.card}>
-            {mockBudgets.slice(0, 3).map(b => <BudgetItem key={b.id} item={b} />)}
+            {recentBudgets.map(b => <BudgetItem key={b.id} item={b} />)}
           </View>
         </View>
 
+        {/* Giao dịch gần đây */}
         <View style={styles.section}>
-          <SectionHeader title="Giao dịch gần đây" onSeeAll={() => navigation.navigate('Transactions')} />
+          <SectionHeader title="Giao dịch gần đây" onSeeAll={goToTransactions} />
           <View style={styles.card}>
-            {mockTransactions.slice(0, 4).map(t => <TransactionItem key={t.id} item={t} />)}
+            {recentTransactions.map(t => <TransactionItem key={t.id} item={t} />)}
           </View>
         </View>
 

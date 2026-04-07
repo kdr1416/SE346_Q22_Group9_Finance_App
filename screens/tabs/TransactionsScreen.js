@@ -1,19 +1,14 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import TransactionItem from '../../components/finance/TransactionItem';
 import { Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
 import { Spacing } from '../../constants/Spacing';
-import { mockTransactions } from '../../data/mockData';
-
-const CATEGORIES = ['Tất cả', 'Income', 'Dining Out', 'Groceries', 'Entertainment', 'Transport', 'Shopping'];
+import useTransactions from '../../hooks/tabs/useTransactions';
 
 export default function TransactionsScreen() {
-  const [active, setActive] = useState('Tất cả');
-  const filtered = active === 'Tất cả'
-    ? mockTransactions
-    : mockTransactions.filter(t => active === 'Income' ? t.type === 'income' : t.category === active);
+  const { categories, activeCategory, setActiveCategory, filtered } = useTransactions();
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
@@ -21,26 +16,30 @@ export default function TransactionsScreen() {
         <Text style={styles.title}>Giao dịch</Text>
       </View>
 
+      {/* Filter chips */}
       <FlatList
-        data={CATEGORIES}
+        data={categories}
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.filterList}
-        keyExtractor={i => i}
+        keyExtractor={(i) => i}
         renderItem={({ item }) => (
           <TouchableOpacity
-            style={[styles.chip, active === item && styles.chipActive]}
-            onPress={() => setActive(item)}
+            style={[styles.chip, activeCategory === item && styles.chipActive]}
+            onPress={() => setActiveCategory(item)}
           >
-            <Text style={[styles.chipText, active === item && styles.chipTextActive]}>{item}</Text>
+            <Text style={[styles.chipText, activeCategory === item && styles.chipTextActive]}>
+              {item}
+            </Text>
           </TouchableOpacity>
         )}
         style={{ flexGrow: 0, marginBottom: Spacing.sm }}
       />
 
+      {/* Danh sách giao dịch */}
       <FlatList
         data={filtered}
-        keyExtractor={t => t.id}
+        keyExtractor={(t) => t.id}
         renderItem={({ item }) => <TransactionItem item={item} />}
         contentContainerStyle={{ paddingHorizontal: Spacing.lg }}
         ItemSeparatorComponent={() => <View style={styles.sep} />}
@@ -54,12 +53,36 @@ export default function TransactionsScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.surface },
   header: { paddingHorizontal: Spacing.lg, paddingVertical: Spacing.base },
-  title: { fontSize: Typography.headlineMd, fontWeight: Typography.bold, color: Colors.onSurface, letterSpacing: Typography.tightTracking },
+  title: {
+    fontFamily: Typography.fontHeadline_Bold,
+    fontSize: Typography.headlineMd,
+    color: Colors.onSurface,
+    letterSpacing: Typography.tightTracking,
+  },
   filterList: { paddingHorizontal: Spacing.lg, gap: Spacing.sm, paddingBottom: Spacing.sm },
-  chip: { paddingHorizontal: Spacing.base, paddingVertical: Spacing.sm, borderRadius: Spacing.radiusFull, backgroundColor: Colors.surfaceContainerHigh },
+  chip: {
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.sm,
+    borderRadius: Spacing.radiusFull,
+    backgroundColor: Colors.surfaceContainerHigh,
+  },
   chipActive: { backgroundColor: Colors.primary },
-  chipText: { fontSize: Typography.labelMd, color: Colors.onSurfaceVariant, fontWeight: Typography.medium },
+  chipText: {
+    fontFamily: Typography.fontBody_Medium,
+    fontSize: Typography.labelMd,
+    color: Colors.onSurfaceVariant,
+  },
   chipTextActive: { color: Colors.onPrimary },
-  sep: { height: 1, backgroundColor: Colors.surfaceContainerHigh, marginLeft: Spacing.iconContainer + Spacing.md },
-  empty: { fontSize: Typography.bodyMd, color: Colors.onSurfaceVariant, textAlign: 'center', paddingTop: Spacing.xxxl },
+  sep: {
+    height: 1,
+    backgroundColor: Colors.surfaceContainerHigh,
+    marginLeft: Spacing.iconContainer + Spacing.md,
+  },
+  empty: {
+    fontFamily: Typography.fontBody_Regular,
+    fontSize: Typography.bodyMd,
+    color: Colors.onSurfaceVariant,
+    textAlign: 'center',
+    paddingTop: Spacing.xxxl,
+  },
 });
