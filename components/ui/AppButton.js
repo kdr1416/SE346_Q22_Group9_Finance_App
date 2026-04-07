@@ -58,7 +58,11 @@ const styles = StyleSheet.create({
   primary: { backgroundColor: Colors.primary },
   secondary: { backgroundColor: Colors.primaryContainer },
   ghost: { backgroundColor: Colors.transparent },
-  label: { fontSize: Typography.titleSm, fontWeight: Typography.semiBold, letterSpacing: 0.1 },
+  label: {
+    fontFamily: Typography.fontBody_SemiBold,
+    fontSize: Typography.titleSm,
+    letterSpacing: 0.1,
+  },
   primaryLabel: { color: Colors.onPrimary },
   secondaryLabel: { color: Colors.primary },
   ghostLabel: { color: Colors.primary },

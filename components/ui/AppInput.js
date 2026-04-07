@@ -25,8 +25,14 @@ export default function AppInput({ label, error, containerStyle, ...props }) {
 
 const styles = StyleSheet.create({
   container: { marginBottom: Spacing.lg },
-  label: { fontSize: Typography.labelMd, color: Colors.onSurfaceVariant, marginBottom: Spacing.xs },
+  label: {
+    fontFamily: Typography.fontBody_Regular,
+    fontSize: Typography.labelMd,
+    color: Colors.onSurfaceVariant,
+    marginBottom: Spacing.xs,
+  },
   input: {
+    fontFamily: Typography.fontBody_Regular,
     fontSize: Typography.bodyLg,
     color: Colors.onSurface,
     paddingVertical: Spacing.base,
@@ -36,5 +42,10 @@ const styles = StyleSheet.create({
   bottomLine: { height: 1, backgroundColor: Colors.outlineVariant, opacity: 0.3 },
   focused: { backgroundColor: Colors.primary, opacity: 1 },
   errorLine: { backgroundColor: Colors.error, opacity: 1 },
-  errorText: { fontSize: Typography.labelSm, color: Colors.error, marginTop: Spacing.xs },
+  errorText: {
+    fontFamily: Typography.fontBody_Regular,
+    fontSize: Typography.labelSm,
+    color: Colors.error,
+    marginTop: Spacing.xs,
+  },
 });

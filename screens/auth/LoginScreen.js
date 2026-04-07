@@ -74,11 +74,33 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.surface },
   container: { flexGrow: 1, padding: Spacing.lg, justifyContent: 'center' },
   header: { marginBottom: Spacing.xxxl },
-  appName: { fontSize: Typography.displayMd, fontWeight: Typography.bold, color: Colors.primary, letterSpacing: Typography.tightTracking, marginBottom: Spacing.xs },
-  tagline: { fontSize: Typography.bodyLg, color: Colors.onSurfaceVariant },
+  appName: {
+    fontFamily: Typography.fontHeadline_ExtraBold,
+    fontSize: Typography.displayMd,
+    color: Colors.primary,
+    letterSpacing: Typography.tightTracking,
+    marginBottom: Spacing.xs,
+  },
+  tagline: {
+    fontFamily: Typography.fontBody_Regular,
+    fontSize: Typography.bodyLg,
+    color: Colors.onSurfaceVariant,
+  },
   forgot: { alignSelf: 'flex-end', marginBottom: Spacing.xl, marginTop: -Spacing.sm },
-  forgotText: { fontSize: Typography.bodyMd, color: Colors.primary, fontWeight: Typography.medium },
+  forgotText: {
+    fontFamily: Typography.fontBody_Medium,
+    fontSize: Typography.bodyMd,
+    color: Colors.primary,
+  },
   footer: { flexDirection: 'row', justifyContent: 'center', marginTop: Spacing.lg },
-  footerText: { fontSize: Typography.bodyMd, color: Colors.onSurfaceVariant },
-  signUp: { fontSize: Typography.bodyMd, color: Colors.primary, fontWeight: Typography.semiBold },
+  footerText: {
+    fontFamily: Typography.fontBody_Regular,
+    fontSize: Typography.bodyMd,
+    color: Colors.onSurfaceVariant,
+  },
+  signUp: {
+    fontFamily: Typography.fontBody_SemiBold,
+    fontSize: Typography.bodyMd,
+    color: Colors.primary,
+  },
 });

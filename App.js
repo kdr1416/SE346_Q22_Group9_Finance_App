@@ -1,10 +1,28 @@
-import React from 'react';
+import React, { useCallback } from 'react';
+import { View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import * as SplashScreen from 'expo-splash-screen';
+
+// Google Fonts
+import {
+  useFonts,
+  Manrope_400Regular,
+  Manrope_500Medium,
+  Manrope_600SemiBold,
+  Manrope_700Bold,
+  Manrope_800ExtraBold,
+} from '@expo-google-fonts/manrope';
+import {
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+} from '@expo-google-fonts/inter';
 
 // Auth Screens
 import LoginScreen from './screens/auth/LoginScreen';
@@ -21,6 +39,9 @@ import ProfileScreen from './screens/tabs/ProfileScreen';
 import { Colors } from './constants/Colors';
 import { Typography } from './constants/Typography';
 import { Spacing } from './constants/Spacing';
+
+// Giữ splash screen cho đến khi font load xong
+SplashScreen.preventAutoHideAsync();
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -46,8 +67,8 @@ function MainTabs() {
           elevation: 8,
         },
         tabBarLabelStyle: {
+          fontFamily: Typography.fontBody_Medium,
           fontSize: Typography.labelSm,
-          fontWeight: Typography.medium,
         },
       }}
     >
@@ -95,7 +116,7 @@ function MainTabs() {
   );
 }
 
-// ==================== ROOT STACK NAVIGATOR ====================
+// ==================== AUTH STACK ====================
 function AuthStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -107,17 +128,40 @@ function AuthStack() {
 
 // ==================== APP ENTRY ====================
 export default function App() {
+  const [fontsLoaded, fontError] = useFonts({
+    Manrope_400Regular,
+    Manrope_500Medium,
+    Manrope_600SemiBold,
+    Manrope_700Bold,
+    Manrope_800ExtraBold,
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+  });
+
+  const onLayoutRootView = useCallback(async () => {
+    if (fontsLoaded || fontError) {
+      await SplashScreen.hideAsync();
+    }
+  }, [fontsLoaded, fontError]);
+
+  // Chưa load xong font thì không render gì
+  if (!fontsLoaded && !fontError) {
+    return null;
+  }
+
   return (
     <SafeAreaProvider>
-      <NavigationContainer>
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
-          {/* Auth group */}
-          <Stack.Screen name="Auth" component={AuthStack} />
-          {/* Main tabs */}
-          <Stack.Screen name="MainTabs" component={MainTabs} />
-        </Stack.Navigator>
-      </NavigationContainer>
-      <StatusBar style="dark" backgroundColor={Colors.surface} />
+      <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
+        <NavigationContainer>
+          <Stack.Navigator screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="Auth" component={AuthStack} />
+            <Stack.Screen name="MainTabs" component={MainTabs} />
+          </Stack.Navigator>
+        </NavigationContainer>
+        <StatusBar style="dark" backgroundColor={Colors.surface} />
+      </View>
     </SafeAreaProvider>
   );
 }

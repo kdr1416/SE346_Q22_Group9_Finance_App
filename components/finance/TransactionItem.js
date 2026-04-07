@@ -35,11 +35,31 @@ export default function TransactionItem({ item }) {
 
 const styles = StyleSheet.create({
   container: { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.md },
-  icon: { width: Spacing.iconContainer, height: Spacing.iconContainer, borderRadius: Spacing.iconContainer / 2, backgroundColor: Colors.surfaceContainerHigh, alignItems: 'center', justifyContent: 'center', marginRight: Spacing.md },
+  icon: {
+    width: Spacing.iconContainer,
+    height: Spacing.iconContainer,
+    borderRadius: Spacing.iconContainer / 2,
+    backgroundColor: Colors.surfaceContainerHigh,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing.md,
+  },
   info: { flex: 1 },
-  title: { fontSize: Typography.titleSm, fontWeight: Typography.medium, color: Colors.onSurface, marginBottom: 2 },
-  meta: { fontSize: Typography.labelMd, color: Colors.onSurfaceVariant },
-  amount: { fontSize: Typography.titleSm, fontWeight: Typography.medium },
+  title: {
+    fontFamily: Typography.fontBody_Medium,
+    fontSize: Typography.titleSm,
+    color: Colors.onSurface,
+    marginBottom: 2,
+  },
+  meta: {
+    fontFamily: Typography.fontBody_Regular,
+    fontSize: Typography.labelMd,
+    color: Colors.onSurfaceVariant,
+  },
+  amount: {
+    fontFamily: Typography.fontBody_SemiBold,
+    fontSize: Typography.titleSm,
+  },
   income: { color: Colors.secondary },
   expense: { color: Colors.onSurface },
 });
