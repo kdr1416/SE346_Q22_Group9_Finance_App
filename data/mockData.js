@@ -4,7 +4,7 @@
 
 export const mockUser = {
   id: 'u1',
-  name: 'Nguyễn Văn Nam',
+  name: 'Nguyễn Phương Nam',
   email: 'nam@example.com',
   avatarUrl: null,
 };
@@ -42,10 +42,16 @@ export const mockPots = [
 ];
 
 export const mockBills = [
-  { id: 'bill1', title: 'Netflix', dueDate: 'Ngày 1', dueDayOfMonth: 1, amount: 130_000, isPaid: false, iconName: 'tv-outline', category: 'Giải trí' },
-  { id: 'bill2', title: 'Internet FPT', dueDate: 'Ngày 3', dueDayOfMonth: 3, amount: 280_000, isPaid: false, iconName: 'wifi-outline', category: 'Tiện ích' },
-  { id: 'bill3', title: 'Điện EVN', dueDate: 'Ngày 15', dueDayOfMonth: 15, amount: 850_000, isPaid: false, iconName: 'flash-outline', category: 'Tiện ích' },
-  { id: 'bill4', title: 'Nước', dueDate: 'Ngày 18', dueDayOfMonth: 18, amount: 300_000, isPaid: false, iconName: 'water-outline', category: 'Tiện ích' },
-  { id: 'bill5', title: 'Spotify', dueDate: 'Ngày 20', dueDayOfMonth: 20, amount: 99_000, isPaid: true, iconName: 'musical-notes-outline', category: 'Giải trí' },
-  { id: 'bill6', title: 'Bảo hiểm sức khỏe', dueDate: 'Ngày 25', dueDayOfMonth: 25, amount: 1_200_000, isPaid: false, iconName: 'shield-checkmark-outline', category: 'Bảo hiểm' },
+  { id: 'bill1', title: 'Netflix', dueDayOfMonth: 1, amount: 130_000, iconName: 'tv-outline', category: 'Giải trí', cycle: 'monthly' },
+  { id: 'bill2', title: 'Internet FPT', dueDayOfMonth: 3, amount: 280_000, iconName: 'wifi-outline', category: 'Tiện ích', cycle: 'monthly' },
+  { id: 'bill3', title: 'Điện EVN', dueDayOfMonth: 15, amount: 850_000, iconName: 'flash-outline', category: 'Tiện ích', cycle: 'monthly' },
+  { id: 'bill4', title: 'Nước', dueDayOfMonth: 18, amount: 300_000, iconName: 'water-outline', category: 'Tiện ích', cycle: 'monthly' },
+  { id: 'bill5', title: 'Spotify', dueDayOfMonth: 20, amount: 99_000, iconName: 'musical-notes-outline', category: 'Giải trí', cycle: 'monthly' },
+  { id: 'bill6', title: 'Bảo hiểm nhân thọ', dueDayOfMonth: 15, dueMonthOfYear: 12, amount: 12_000_000, iconName: 'shield-checkmark-outline', category: 'Bảo hiểm', cycle: 'yearly' },
+  { id: 'bill7', title: 'Khóa học tiếng Anh', dueDayOfMonth: 5, dueMonthOfYear: 10, amount: 4_500_000, iconName: 'school-outline', category: 'Giáo dục', cycle: 'yearly' },
+];
+
+export const mockBillPayments = [
+  { id: 'payment1', billId: 'bill5', period: '2024-10', paidAt: '2024-10-20T10:00:00Z' },
+  { id: 'payment2', billId: 'bill7', period: '2024', paidAt: '2024-10-05T09:00:00Z' },
 ];

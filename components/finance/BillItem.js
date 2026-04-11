@@ -6,9 +6,18 @@ import { Typography } from '../../constants/Typography';
 import { Spacing } from '../../constants/Spacing';
 import { formatVND } from '../../utils/currency';
 
-export default function BillItem({ item, onToggle = null, compact = false }) {
+export default function BillItem({ item, onToggle = null, onEdit = null, compact = false }) {
+  const dueText = item.cycle === 'yearly'
+    ? `Ngày ${item.dueDayOfMonth}/${item.dueMonthOfYear} (Hằng năm)`
+    : `Ngày ${item.dueDayOfMonth} (Hằng tháng)`;
+
   return (
-    <View style={styles.container}>
+    <TouchableOpacity 
+      style={styles.container}
+      activeOpacity={0.7}
+      disabled={!onEdit}
+      onPress={() => onEdit && onEdit(item)}
+    >
       {/* Icon */}
       <View style={[styles.icon, item.isPaid && styles.iconPaid]}>
         <Ionicons
@@ -22,7 +31,7 @@ export default function BillItem({ item, onToggle = null, compact = false }) {
       <View style={styles.info}>
         <Text style={[styles.title, item.isPaid && styles.titlePaid]}>{item.title}</Text>
         <Text style={[styles.due, item.isPaid && styles.duePaid]}>
-          {item.isPaid ? '✓ Đã thanh toán' : `Hạn: ${item.dueDate}`}
+          {item.isPaid ? '✓ Đã thanh toán' : `Hạn: ${dueText}`}
         </Text>
       </View>
 
@@ -33,7 +42,10 @@ export default function BillItem({ item, onToggle = null, compact = false }) {
         </Text>
         {onToggle && (
           <TouchableOpacity
-            onPress={() => onToggle(item.id)}
+            onPress={(e) => {
+              e.stopPropagation();
+              onToggle(item.id, item.isPaid, item.currentPeriod);
+            }}
             style={[styles.check, item.isPaid && styles.checkPaid]}
             activeOpacity={0.7}
           >
@@ -43,7 +55,7 @@ export default function BillItem({ item, onToggle = null, compact = false }) {
           </TouchableOpacity>
         )}
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -77,13 +89,12 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   duePaid: { color: Colors.secondary },
-  right: { alignItems: 'flex-end', gap: Spacing.xs },
+  amountWrap: { alignItems: 'flex-end', flexDirection: 'row', gap: Spacing.sm },
   amount: {
     fontFamily: Typography.fontBody_SemiBold,
     fontSize: Typography.titleSm,
     color: Colors.onSurface,
   },
-  amountPaid: { color: Colors.onSurfaceVariant },
   check: {
     width: 22,
     height: 22,
@@ -92,6 +103,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.outlineVariant,
     alignItems: 'center',
     justifyContent: 'center',
+    marginLeft: Spacing.sm,
   },
   checkPaid: {
     backgroundColor: Colors.secondary,
