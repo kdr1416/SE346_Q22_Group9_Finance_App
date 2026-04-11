@@ -20,10 +20,11 @@ export default function useBills(defaultMonth = new Date().getMonth() + 1, defau
     
     const fetchBills = async () => {
       setLoading(true);
-      // 1. Lấy danh sách hóa đơn
+      // 1. Lấy danh sách hóa đơn (chỉ lấy hóa đơn chưa bị xóa - is_archived = false)
       const { data: billsData, error: billsError } = await supabase
         .from('bills')
-        .select('*');
+        .select('*')
+        .eq('is_archived', false);
       
       if (!billsError && billsData) {
         const mappedBills = billsData.map(b => ({
@@ -120,13 +121,24 @@ export default function useBills(defaultMonth = new Date().getMonth() + 1, defau
   const togglePaid = useCallback(async (id, currentIsPaid, period) => {
     if (!user) return;
     
+    const bill = bills.find(b => b.id === id);
+    if (!bill) return;
+
     // Optimistic Update: Sửa UI ngay lập tức
     if (currentIsPaid) {
       setPayments(prev => prev.filter(p => !(p.billId === id && p.period === period)));
+      
+      // 1. Hủy xác nhận thanh toán Hóa Đơn
       await supabase
         .from('bill_payments')
         .delete()
         .match({ bill_id: id, period: period });
+        
+      // 2. Hủy bỏ Giao dịch đã sinh ra
+      await supabase
+        .from('transactions')
+        .delete()
+        .match({ linked_bill_id: id, linked_period: period });
     } else {
       const tempId = Math.random().toString();
       setPayments(prev => [...prev, { id: tempId, billId: id, period }]);
@@ -140,15 +152,26 @@ export default function useBills(defaultMonth = new Date().getMonth() + 1, defau
       if (data) {
         setPayments(prev => prev.map(p => p.id === tempId ? { ...p, id: data.id } : p));
       }
+      
+      // Khởi tạo Transaction Chi Tiêu Ghi nợ
+      await supabase.from('transactions').insert({
+        user_id: user.id,
+        title: bill.title + ` (Kỳ ${period})`,
+        category: bill.category || 'Khác',
+        amount: bill.amount,
+        type: 'expense',
+        icon_name: bill.iconName,
+        linked_bill_id: id,
+        linked_period: period,
+      });
     }
-  }, [user]);
+  }, [user, bills]);
 
   const deleteBill = useCallback(async (id) => {
-    // Optimistic Update
+    // Optimistic Update: Soft Delete - Chặn xóa cứng để bảo vệ Balance Lịch Sử
     setBills(prev => prev.filter(bill => bill.id !== id));
-    setPayments(prev => prev.filter(p => p.billId !== id)); 
     
-    await supabase.from('bills').delete().match({ id });
+    await supabase.from('bills').update({ is_archived: true }).match({ id });
   }, []);
 
   const saveBill = useCallback(async (billData) => {

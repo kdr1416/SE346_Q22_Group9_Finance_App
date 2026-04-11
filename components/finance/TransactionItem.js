@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
@@ -14,10 +14,15 @@ const fmtDate = (dateString) => {
   return date.toLocaleDateString('vi-VN', { day: 'numeric', month: 'short' });
 };
 
-export default function TransactionItem({ item }) {
+export default function TransactionItem({ item, onEdit = null }) {
   const isIncome = item.type === 'income';
   return (
-    <View style={styles.container}>
+    <TouchableOpacity 
+      style={styles.container}
+      activeOpacity={0.7}
+      disabled={!onEdit}
+      onPress={() => onEdit && onEdit(item)}
+    >
       <View style={styles.icon}>
         <Ionicons name={item.iconName ?? 'cash-outline'} size={20} color={Colors.onSurfaceVariant} />
       </View>
@@ -28,7 +33,7 @@ export default function TransactionItem({ item }) {
       <Text style={[styles.amount, { color: isIncome ? Colors.secondary : Colors.onSurface }]}>
         {formatTransaction(item.amount, item.type)}
       </Text>
-    </View>
+    </TouchableOpacity>
   );
 }
 

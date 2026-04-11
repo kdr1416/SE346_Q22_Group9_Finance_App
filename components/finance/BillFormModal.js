@@ -6,14 +6,7 @@ import { Typography } from '../../constants/Typography';
 import { Spacing } from '../../constants/Spacing';
 import AppInput from '../ui/AppInput';
 import AppButton from '../ui/AppButton';
-
-const CATEGORIES = [
-  { value: 'Tiện ích', icon: 'flash-outline' },
-  { value: 'Giải trí', icon: 'tv-outline' },
-  { value: 'Giáo dục', icon: 'school-outline' },
-  { value: 'Bảo hiểm', icon: 'shield-checkmark-outline' },
-  { value: 'Khác', icon: 'receipt-outline' },
-];
+import { EXPENSE_CATEGORIES } from '../../constants/Categories';
 
 export default function BillFormModal({ visible, onClose, onSave, onDelete, initialData }) {
   const isEditing = !!initialData;
@@ -23,7 +16,7 @@ export default function BillFormModal({ visible, onClose, onSave, onDelete, init
   const [cycle, setCycle] = useState('monthly'); // 'monthly' | 'yearly'
   const [dueDay, setDueDay] = useState('');
   const [dueMonth, setDueMonth] = useState('');
-  const [category, setCategory] = useState(CATEGORIES[0]);
+  const [category, setCategory] = useState(EXPENSE_CATEGORIES[0]);
 
   // Đổ dữ liệu có sẵn khi mở sửa
   useEffect(() => {
@@ -33,7 +26,7 @@ export default function BillFormModal({ visible, onClose, onSave, onDelete, init
       setCycle(initialData.cycle);
       setDueDay(initialData.dueDayOfMonth?.toString() || '');
       setDueMonth(initialData.dueMonthOfYear?.toString() || '');
-      const cat = CATEGORIES.find(c => c.value === initialData.category);
+      const cat = EXPENSE_CATEGORIES.find(c => c.value === initialData.category);
       if (cat) setCategory(cat);
     } else if (!visible) {
       // Reset form khi ẩn
@@ -42,7 +35,7 @@ export default function BillFormModal({ visible, onClose, onSave, onDelete, init
       setCycle('monthly');
       setDueDay('');
       setDueMonth('');
-      setCategory(CATEGORIES[0]);
+      setCategory(EXPENSE_CATEGORIES[0]);
     }
   }, [initialData, visible]);
 
@@ -111,7 +104,7 @@ export default function BillFormModal({ visible, onClose, onSave, onDelete, init
 
             <Text style={styles.label}>Danh mục</Text>
             <View style={styles.catRow}>
-              {CATEGORIES.map(cat => (
+              {EXPENSE_CATEGORIES.map(cat => (
                 <TouchableOpacity
                   key={cat.value}
                   style={[styles.catBtn, category.value === cat.value && styles.catBtnActive]}

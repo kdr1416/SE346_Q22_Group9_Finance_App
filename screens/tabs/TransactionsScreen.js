@@ -1,14 +1,50 @@
-import React from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import TransactionItem from '../../components/finance/TransactionItem';
+import TransactionFormModal from '../../components/finance/TransactionFormModal';
 import { Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
 import { Spacing } from '../../constants/Spacing';
 import useTransactions from '../../hooks/tabs/useTransactions';
 
 export default function TransactionsScreen() {
-  const { categories, activeCategory, setActiveCategory, filtered } = useTransactions();
+  const { 
+    categories, activeCategory, setActiveCategory, 
+    filtered, saveTransaction, deleteTransaction 
+  } = useTransactions();
+
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editingTrx, setEditingTrx] = useState(null);
+
+  const openAddModal = () => {
+    setEditingTrx(null);
+    setModalVisible(true);
+  };
+
+  const openEditModal = (item) => {
+    if (item.linkedBillId) {
+      Alert.alert(
+        'Bị khóa chặn',
+        'Giao dịch tự động từ mục Hóa Đơn / Định kỳ. Vui lòng sang tab Hóa Đơn để hủy việc trả tiền hoặc sửa đổi!',
+        [{ text: 'Đã rõ', style: 'default' }]
+      );
+      return;
+    }
+    setEditingTrx(item);
+    setModalVisible(true);
+  };
+
+  const handleSave = (data) => {
+    saveTransaction(data);
+    setModalVisible(false);
+  };
+
+  const handleDelete = (id) => {
+    deleteTransaction(id);
+    setModalVisible(false);
+  };
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
@@ -40,11 +76,25 @@ export default function TransactionsScreen() {
       <FlatList
         data={filtered}
         keyExtractor={(t) => t.id}
-        renderItem={({ item }) => <TransactionItem item={item} />}
-        contentContainerStyle={{ paddingHorizontal: Spacing.lg }}
+        renderItem={({ item }) => <TransactionItem item={item} onEdit={openEditModal} />}
+        contentContainerStyle={{ paddingHorizontal: Spacing.lg, paddingBottom: 100 }}
         ItemSeparatorComponent={() => <View style={styles.sep} />}
         ListEmptyComponent={<Text style={styles.empty}>Không có giao dịch nào</Text>}
         showsVerticalScrollIndicator={false}
+      />
+
+      {/* Nút Thêm (FAB) */}
+      <TouchableOpacity style={styles.fab} onPress={openAddModal}>
+        <Ionicons name="add" size={32} color={Colors.white} />
+      </TouchableOpacity>
+
+      {/* Modal biểu mẫu giao dịch */}
+      <TransactionFormModal 
+        visible={modalVisible} 
+        onClose={() => setModalVisible(false)} 
+        onSave={handleSave} 
+        onDelete={handleDelete}
+        initialData={editingTrx}
       />
     </SafeAreaView>
   );
@@ -85,4 +135,20 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingTop: Spacing.xxxl,
   },
+  fab: {
+    position: 'absolute',
+    bottom: Spacing.xl,
+    right: Spacing.xl,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 6,
+    shadowColor: Colors.primary,
+    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 6,
+  }
 });
