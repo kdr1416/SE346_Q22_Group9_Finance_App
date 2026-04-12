@@ -24,12 +24,11 @@ export default function TransactionsScreen() {
   };
 
   const openEditModal = (item) => {
-    if (item.linkedBillId) {
-      Alert.alert(
-        'Bị khóa chặn',
-        'Giao dịch tự động từ mục Hóa Đơn / Định kỳ. Vui lòng sang tab Hóa Đơn để hủy việc trả tiền hoặc sửa đổi!',
-        [{ text: 'Đã rõ', style: 'default' }]
-      );
+    if (item.linkedBillId || item.linkedPotId) {
+      const msg = item.linkedBillId
+        ? 'Giao dịch tự động từ Hóa Đơn. Sang tab Hóa Đơn để hủy việc trả tiền.'
+        : 'Giao dịch tự động từ Lọ Tiết Kiệm. Dùng chức năng Rút tiền trong lọ để hoàn tác.';
+      Alert.alert('Giao dịch bị khóa 🔒', msg, [{ text: 'Đã rõ' }]);
       return;
     }
     setEditingTrx(item);

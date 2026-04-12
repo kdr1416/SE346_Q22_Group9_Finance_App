@@ -16,6 +16,8 @@ const fmtDate = (dateString) => {
 
 export default function TransactionItem({ item, onEdit = null }) {
   const isIncome = item.type === 'income';
+  const locked = !!(item.linkedBillId || item.linkedPotId);
+
   return (
     <TouchableOpacity 
       style={styles.container}
@@ -23,11 +25,16 @@ export default function TransactionItem({ item, onEdit = null }) {
       disabled={!onEdit}
       onPress={() => onEdit && onEdit(item)}
     >
-      <View style={styles.icon}>
-        <Ionicons name={item.iconName ?? 'cash-outline'} size={20} color={Colors.onSurfaceVariant} />
+      <View style={[styles.icon, locked && { backgroundColor: Colors.surfaceContainerHighest }]}>
+        <Ionicons name={item.iconName ?? 'cash-outline'} size={20} color={locked ? Colors.onSurfaceVariant : Colors.onSurfaceVariant} />
       </View>
       <View style={styles.info}>
-        <Text style={styles.title}>{item.title}</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
+          {locked && (
+            <Ionicons name="lock-closed-outline" size={12} color={Colors.onSurfaceVariant} style={{ marginLeft: 4, opacity: 0.6 }} />
+          )}
+        </View>
         <Text style={styles.meta}>{item.category} · {fmtDate(item.date)}</Text>
       </View>
       <Text style={[styles.amount, { color: isIncome ? Colors.secondary : Colors.onSurface }]}>
@@ -36,6 +43,7 @@ export default function TransactionItem({ item, onEdit = null }) {
     </TouchableOpacity>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.md },
@@ -48,7 +56,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: Spacing.md,
   },
-  info: { flex: 1 },
+  info: { flex: 1, marginRight: Spacing.sm },
+  titleRow: { flexDirection: 'row', alignItems: 'center' },
   title: {
     fontFamily: Typography.fontBody_Medium,
     fontSize: Typography.titleSm,

@@ -10,6 +10,7 @@ export const EXPENSE_CATEGORIES = [
   { value: 'Giáo dục', icon: 'school-outline', color: '#2196F3' },        // Xanh biển
   { value: 'Sức khỏe', icon: 'medkit-outline', color: '#F44336' },        // Đỏ
   { value: 'Hóa đơn', icon: 'receipt-outline', color: '#607D8B' },        // Xám xanh
+  { value: 'Tiết kiệm', icon: 'wallet-outline', color: '#277C78' },      // Xanh ngọc lục bảo
   { value: 'Khác', icon: 'card-outline', color: '#9E9E9E' },              // Xám
 ];
 
@@ -17,6 +18,7 @@ export const INCOME_CATEGORIES = [
   { value: 'Lương', icon: 'wallet-outline', color: '#4CAF50' },           // Xanh lá
   { value: 'Thưởng', icon: 'gift-outline', color: '#FFC107' },            // Vàng
   { value: 'Đầu tư', icon: 'trending-up-outline', color: '#2196F3' },     // Xanh biển
+  { value: 'Tiết kiệm', icon: 'wallet-outline', color: '#277C78' },      // Xanh ngọc lục bảo
   { value: 'Khác', icon: 'cash-outline', color: '#9E9E9E' },              // Xám
 ];
 

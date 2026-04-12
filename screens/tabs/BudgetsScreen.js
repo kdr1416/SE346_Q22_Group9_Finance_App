@@ -11,7 +11,24 @@ import useBudgets from '../../hooks/tabs/useBudgets';
 import { formatVND } from '../../utils/currency';
 
 export default function BudgetsScreen() {
-  const { budgets, breakdown, totalSpent, totalLimit, availableCategories, saveBudget, deleteBudget, loading } = useBudgets();
+  const { 
+    budgets, 
+    breakdown, 
+    totalIncome, 
+    totalExpense, 
+    totalLimit, 
+    selectedMonth, 
+    selectedYear, 
+    isPastMonth, 
+    canGoPrev, 
+    canGoNext, 
+    prevMonth, 
+    nextMonth, 
+    saveBudget, 
+    deleteBudget, 
+    availableCategories, 
+    loading 
+  } = useBudgets();
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editingBudget, setEditingBudget] = useState(null);
@@ -40,13 +57,27 @@ export default function BudgetsScreen() {
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.title}>Ngân sách</Text>
+          <View style={styles.monthSelector}>
+            <TouchableOpacity onPress={prevMonth} disabled={!canGoPrev} style={styles.monthBtn}>
+              <Ionicons name="chevron-back" size={24} color={canGoPrev ? Colors.primary : Colors.outline} />
+            </TouchableOpacity>
+            <Text style={styles.monthText}>Tháng {selectedMonth}/{selectedYear}</Text>
+            <TouchableOpacity onPress={nextMonth} disabled={!canGoNext} style={styles.monthBtn}>
+              <Ionicons name="chevron-forward" size={24} color={canGoNext ? Colors.primary : Colors.outline} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Tóm tắt */}
-        <View style={styles.summaryCard}>
-          <Text style={styles.sumLabel}>Tổng chi tiêu</Text>
-          <Text style={styles.sumAmount}>{formatVND(totalSpent)}</Text>
-          <Text style={styles.sumOf}>trên {formatVND(totalLimit)} ngân sách</Text>
+        <View style={styles.summaryRow}>
+          <View style={[styles.summaryCard, { backgroundColor: '#E8F5E9', marginRight: Spacing.sm }]}>
+            <Text style={[styles.sumLabel, { color: '#2E7D32' }]}>Tổng tiền vào</Text>
+            <Text style={[styles.sumAmount, { color: '#1B5E20' }]}>{formatVND(totalIncome)}</Text>
+          </View>
+          <View style={[styles.summaryCard, { backgroundColor: Colors.errorContainer, marginLeft: Spacing.sm }]}>
+            <Text style={[styles.sumLabel, { color: Colors.onErrorContainer }]}>Tổng tiền ra</Text>
+            <Text style={[styles.sumAmount, { color: Colors.error }]}>{formatVND(totalExpense)}</Text>
+          </View>
         </View>
 
         {/* Chi tiết */}
@@ -58,12 +89,12 @@ export default function BudgetsScreen() {
             <View style={styles.card}>
               {budgets.length > 0 ? (
                 budgets.map(b => (
-                  <TouchableOpacity key={b.id} onPress={() => openEditModal(b)}>
+                  <TouchableOpacity key={b.id} onPress={() => openEditModal(b)} disabled={isPastMonth}>
                     <BudgetItem item={b} />
                   </TouchableOpacity>
                 ))
               ) : (
-                <Text style={styles.empty}>Tháng này chưa lập ngân sách phòng thủ nào.</Text>
+                <Text style={styles.empty}>Chưa lập ngân sách phòng thủ nào cho tháng này.</Text>
               )}
             </View>
           )}
@@ -98,58 +129,81 @@ export default function BudgetsScreen() {
         <View style={{ height: Spacing.xl + 60 }} />
       </ScrollView>
 
-      {/* FAB Thêm Ngân Sách */}
-      <TouchableOpacity style={styles.fab} onPress={openAddModal}>
-        <Ionicons name="add" size={32} color={Colors.white} />
-      </TouchableOpacity>
+      {/* FAB Thêm Ngân Sách - Chỉ hiện khi không phải Quá khứ */}
+      {!isPastMonth && (
+        <TouchableOpacity style={styles.fab} onPress={openAddModal}>
+          <Ionicons name="add" size={32} color={Colors.white} />
+        </TouchableOpacity>
+      )}
 
-      <BudgetFormModal 
-        visible={modalVisible}
-        onClose={() => setModalVisible(false)}
-        onSave={handleSave}
-        onDelete={handleDelete}
-        initialData={editingBudget}
-        availableCategories={availableCategories}
-      />
+      {!isPastMonth && (
+        <BudgetFormModal 
+          visible={modalVisible}
+          onClose={() => setModalVisible(false)}
+          onSave={handleSave}
+          onDelete={handleDelete}
+          initialData={editingBudget}
+          availableCategories={availableCategories}
+        />
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.surface },
-  header: { paddingHorizontal: Spacing.lg, paddingVertical: Spacing.base },
+  header: { 
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.lg, 
+    paddingVertical: Spacing.base 
+  },
   title: {
     fontFamily: Typography.fontHeadline_Bold,
     fontSize: Typography.headlineMd,
     color: Colors.onSurface,
     letterSpacing: Typography.tightTracking,
   },
-  summaryCard: {
-    backgroundColor: Colors.primary,
-    marginHorizontal: Spacing.lg,
+  monthSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surfaceContainerLowest,
     borderRadius: Spacing.radiusXl,
-    padding: Spacing.xl,
+    paddingHorizontal: Spacing.xs,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: Colors.outlineVariant,
+  },
+  monthBtn: {
+    padding: Spacing.xs,
+  },
+  monthText: {
+    fontFamily: Typography.fontHeadline_SemiBold,
+    fontSize: Typography.bodyMd,
+    color: Colors.onSurface,
+    marginHorizontal: Spacing.xs,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    marginHorizontal: Spacing.lg,
     marginBottom: Spacing.xl,
   },
+  summaryCard: {
+    flex: 1,
+    borderRadius: Spacing.radiusXl,
+    padding: Spacing.lg,
+  },
   sumLabel: {
-    fontFamily: Typography.fontBody_Regular,
+    fontFamily: Typography.fontBody_Medium,
     fontSize: Typography.labelMd,
-    color: Colors.onPrimary,
-    opacity: 0.7,
+    opacity: 0.8,
     marginBottom: Spacing.xs,
   },
   sumAmount: {
-    fontFamily: Typography.fontHeadline_ExtraBold,
-    fontSize: Typography.displayMd,
-    color: Colors.onPrimary,
+    fontFamily: Typography.fontHeadline_Bold,
+    fontSize: Typography.titleLg,
     letterSpacing: Typography.tightTracking,
-    marginBottom: 4,
-  },
-  sumOf: {
-    fontFamily: Typography.fontBody_Regular,
-    fontSize: Typography.bodyMd,
-    color: Colors.onPrimary,
-    opacity: 0.7,
   },
   section: { paddingHorizontal: Spacing.lg },
   sectionTitle: {
