@@ -1,18 +1,20 @@
 import { useMemo } from 'react';
-import {
-  mockBudgets,
-  mockUser,
-} from '../../data/mockData';
+import { useAuth } from '../../contexts/AuthContext';
 import useBills from './useBills';
 import useTransactions from './useTransactions';
+import useBudgets from './useBudgets';
 
 /**
  * useOverview — cung cấp dữ liệu cho màn hình Tổng quan
  * @param {object} navigation - React Navigation navigation prop
  */
 export default function useOverview(navigation) {
+  const { profile } = useAuth();
   const { bills, togglePaid } = useBills();
   const { filtered: transactions } = useTransactions();
+  const { budgets } = useBudgets();
+
+  const user = profile || { name: 'Người dùng' };
 
   // Lấy 4 giao dịch mới nhất
   const recentTransactions = useMemo(() => transactions.slice(0, 4), [transactions]);
@@ -46,7 +48,7 @@ export default function useOverview(navigation) {
     return { totalBalance, income, expenses };
   }, [transactions]);
 
-  const recentBudgets = useMemo(() => mockBudgets.slice(0, 3), []);
+  const recentBudgets = useMemo(() => budgets?.slice(0, 3) || [], [budgets]);
   // Chỉ hiện 3 hóa đơn chưa trả ở Overview
   const previewBills = useMemo(() => bills.filter(b => !b.isPaid).slice(0, 3), [bills]);
 
@@ -55,7 +57,7 @@ export default function useOverview(navigation) {
   const goToBills = () => navigation.navigate('Bills');
 
   return {
-    user: mockUser,
+    user,
     summary,
     recentTransactions,
     recentBudgets,
