@@ -99,16 +99,19 @@ export default function PotsScreen() {
           ) : (
             <View style={styles.card}>
               {pots.length > 0 ? (
-                pots.map(p => (
-                  <PotItem
-                    key={p.id}
-                    item={p}
-                    onDeposit={() => handleDeposit(p)}
-                    onEdit={() => handleEdit(p)}
-                    onComplete={() => handleComplete(p)}
-                    onDelete={() => handleDelete(p)}
-                  />
-                ))
+                pots.map((p, index) => {
+                  if (!p.id) console.warn(`Cảnh báo: Lọ "${p.name}" bị thiếu id!`, p);
+                  return (
+                    <PotItem
+                      key={p.id || `pot-${index}`}
+                      item={p}
+                      onDeposit={() => handleDeposit(p)}
+                      onEdit={() => handleEdit(p)}
+                      onComplete={() => handleComplete(p)}
+                      onDelete={() => handleDelete(p)}
+                    />
+                  );
+                })
               ) : (
                 <Text style={styles.empty}>Chưa có lọ tiết kiệm nào. Nhấn + để tạo lọ đầu tiên!</Text>
               )}
