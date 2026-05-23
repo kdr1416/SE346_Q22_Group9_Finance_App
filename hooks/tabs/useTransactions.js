@@ -94,21 +94,28 @@ export default function useTransactions() {
         return;
       }
       setTransactions(prev => prev.map(t => t.id === trxData.id ? { ...t, ...trxData } : t));
-      await supabase.from('transactions').update(dbPayload).match({ id: trxData.id });
+      await supabase.from('transactions').update(dbPayload).eq('id', trxData.id);
     } else {
-      // INSERT mới
-      const tempId = Math.random().toString();
-      const newTrx = { ...trxData, id: tempId };
-      setTransactions(prev => [newTrx, ...prev]);
-
-      const { data } = await supabase
+      // INSERT mới - Đợi dữ liệu thật từ DB trả về để đồng bộ ID đồng nhất
+      const { data, error } = await supabase
         .from('transactions')
         .insert(dbPayload)
         .select()
         .single();
 
+      if (error) {
+        Alert.alert('Lỗi tạo giao dịch', error.message);
+        return;
+      }
+
       if (data) {
-        setTransactions(prev => prev.map(t => t.id === tempId ? { ...t, id: data.id } : t));
+        setTransactions(prev => [mapDbToLocal(data), ...prev]);
+      } else {
+        const { data: allTrx } = await supabase
+          .from('transactions')
+          .select('*')
+          .order('date', { ascending: false });
+        if (allTrx) setTransactions(allTrx.map(mapDbToLocal));
       }
     }
   }, [user, transactions]);

@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, KeyboardAvoidingView, Platform, Dimensions
+  TouchableOpacity, KeyboardAvoidingView, Platform, Dimensions, Alert
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,6 +19,7 @@ export default function LoginScreen({ navigation }) {
   const {
     email, password, emailError, passwordError, generalError, loading,
     handleEmailChange, handlePasswordChange, handleLogin, goToRegister,
+    handleForgotPassword,
   } = useLogin(navigation);
 
   return (
@@ -62,7 +63,7 @@ export default function LoginScreen({ navigation }) {
               iconName="lock-closed-outline"
             />
 
-            <TouchableOpacity style={styles.forgot}>
+            <TouchableOpacity style={styles.forgot} onPress={handleForgotPassword}>
               <Text style={styles.forgotText}>Quên mật khẩu?</Text>
             </TouchableOpacity>
 
@@ -74,8 +75,8 @@ export default function LoginScreen({ navigation }) {
               <View style={styles.divider} />
             </View>
 
-            <SocialButton provider="Google" onPress={() => { }} />
-            <SocialButton provider="Apple" onPress={() => { }} />
+            <SocialButton provider="Google" onPress={() => Alert.alert('Thông báo', 'Đăng nhập Google đang được phát triển!')} />
+            <SocialButton provider="Apple" onPress={() => Alert.alert('Thông báo', 'Đăng nhập Apple đang được phát triển!')} />
 
             <View style={styles.footer}>
               <Text style={styles.footerText}>Chưa có tài khoản? </Text>

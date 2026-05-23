@@ -25,6 +25,13 @@ function SectionHeader({ title, onSeeAll = null }) {
   );
 }
 
+const getGreeting = () => {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 11) return 'Chào buổi sáng 👋';
+  if (hour >= 11 && hour < 18) return 'Chào buổi chiều 👋';
+  return 'Chào buổi tối 👋';
+};
+
 export default function OverviewScreen({ navigation }) {
   const {
     user, summary,
@@ -40,7 +47,7 @@ export default function OverviewScreen({ navigation }) {
         {/* Header */}
         <View style={styles.appHeader}>
           <View>
-            <Text style={styles.greeting}>Chào buổi sáng 👋</Text>
+            <Text style={styles.greeting}>{getGreeting()}</Text>
             <Text style={styles.userName}>{user.name}</Text>
           </View>
           <TouchableOpacity style={styles.notif}>

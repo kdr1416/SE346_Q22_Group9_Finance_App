@@ -184,7 +184,7 @@ export default function useBudgets(defaultMonth = new Date().getMonth() + 1, def
 
     if (budgetData.id) {
       setBudgets(prev => prev.map(b => b.id === budgetData.id ? { ...b, limit: budgetData.limit } : b));
-      const { error } = await supabase.from('budgets').update({ limit: budgetData.limit }).match({ id: budgetData.id });
+      const { error } = await supabase.from('budgets').update({ limit: budgetData.limit }).eq('id', budgetData.id);
       if (error) Alert.alert('Lỗi Database Update', error.message);
     } else {
       const tempId = Math.random().toString();
@@ -215,7 +215,7 @@ export default function useBudgets(defaultMonth = new Date().getMonth() + 1, def
   const deleteBudget = useCallback(async (id) => {
     if (!id || id.startsWith('0.')) return; 
     setBudgets(prev => prev.filter(b => b.id !== id));
-    await supabase.from('budgets').delete().match({ id });
+    await supabase.from('budgets').delete().eq('id', id);
   }, []);
 
   const totalLimit = useMemo(() => budgets.reduce((sum, b) => sum + b.limit, 0), [budgets]);

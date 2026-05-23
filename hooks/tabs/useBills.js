@@ -132,13 +132,15 @@ export default function useBills(defaultMonth = new Date().getMonth() + 1, defau
       await supabase
         .from('bill_payments')
         .delete()
-        .match({ bill_id: id, period: period });
+        .eq('bill_id', id)
+        .eq('period', period);
         
       // 2. Hủy bỏ Giao dịch đã sinh ra
       await supabase
         .from('transactions')
         .delete()
-        .match({ linked_bill_id: id, linked_period: period });
+        .eq('linked_bill_id', id)
+        .eq('linked_period', period);
     } else {
       const tempId = Math.random().toString();
       setPayments(prev => [...prev, { id: tempId, billId: id, period }]);
@@ -168,10 +170,11 @@ export default function useBills(defaultMonth = new Date().getMonth() + 1, defau
   }, [user, bills]);
 
   const deleteBill = useCallback(async (id) => {
+    if (!id) return;
     // Optimistic Update: Soft Delete - Chặn xóa cứng để bảo vệ Balance Lịch Sử
     setBills(prev => prev.filter(bill => bill.id !== id));
     
-    await supabase.from('bills').update({ is_archived: true }).match({ id });
+    await supabase.from('bills').update({ is_archived: true }).eq('id', id);
   }, []);
 
   const saveBill = useCallback(async (billData) => {
@@ -191,7 +194,7 @@ export default function useBills(defaultMonth = new Date().getMonth() + 1, defau
     if (billData.id) {
       // Cập nhật hóa đơn
       setBills(prev => prev.map(b => b.id === billData.id ? { ...b, ...billData } : b));
-      await supabase.from('bills').update(dbPayload).match({ id: billData.id });
+      await supabase.from('bills').update(dbPayload).eq('id', billData.id);
     } else {
       // Tạo hóa đơn mới
       const tempId = Math.random().toString();
