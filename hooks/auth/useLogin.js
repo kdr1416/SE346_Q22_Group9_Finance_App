@@ -1,4 +1,6 @@
 import { useState, useCallback } from 'react';
+import { Alert } from 'react-native';
+import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 
 export default function useLogin(navigation) {
@@ -57,6 +59,31 @@ export default function useLogin(navigation) {
     }
   };
 
+  const handleForgotPassword = async () => {
+    if (!validateEmail(email)) {
+      setEmailError('Vui lòng nhập email hợp lệ để khôi phục mật khẩu');
+      return;
+    }
+    setEmailError('');
+    setGeneralError('');
+    setLoading(true);
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim());
+      if (error) throw error;
+      Alert.alert(
+        'Thành công',
+        'Hệ thống đã gửi link khôi phục mật khẩu đến email của bạn. Vui lòng kiểm tra hộp thư!'
+      );
+    } catch (error) {
+      let msg = error.message;
+      if (msg.includes('rate limit')) msg = 'Vui lòng đợi vài phút trước khi yêu cầu lại';
+      setGeneralError(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const goToRegister = () => navigation.navigate('Register');
 
   return {
@@ -70,5 +97,6 @@ export default function useLogin(navigation) {
     handlePasswordChange,
     handleLogin,
     goToRegister,
+    handleForgotPassword,
   };
 }
