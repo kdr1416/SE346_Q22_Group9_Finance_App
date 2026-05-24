@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import BudgetItem from '../../components/finance/BudgetItem';
 import BudgetFormModal from '../../components/finance/BudgetFormModal';
+import SpendingPieChart from '../../components/finance/SpendingPieChart';
 import { Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
 import { Spacing } from '../../constants/Spacing';
@@ -79,6 +80,11 @@ export default function BudgetsScreen() {
             <Text style={[styles.sumAmount, { color: Colors.error }]}>{formatVND(totalExpense)}</Text>
           </View>
         </View>
+
+        {/* Biểu đồ tròn cơ cấu chi tiêu thực tế */}
+        {!loading && breakdown.length > 0 && (
+          <SpendingPieChart breakdown={breakdown} />
+        )}
 
         {/* Chi tiết */}
         <View style={styles.section}>
