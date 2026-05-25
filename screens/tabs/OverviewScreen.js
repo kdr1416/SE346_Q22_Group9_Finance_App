@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import HeroBalanceCard from '../../components/finance/HeroBalanceCard';
-import IncomeExpenseChart from '../../components/finance/IncomeExpenseChart';
 import TransactionItem from '../../components/finance/TransactionItem';
 import BudgetItem from '../../components/finance/BudgetItem';
 import BillItem from '../../components/finance/BillItem';
@@ -56,18 +55,12 @@ export default function OverviewScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* Balance Card */}
+        {/* Balance Card tích hợp biểu đồ thống kê */}
         <HeroBalanceCard
           totalBalance={summary.totalBalance}
           income={summary.income}
           expenses={summary.expenses}
           style={{ marginBottom: Spacing.xl }}
-        />
-
-        {/* Biểu đồ thống kê Thu - Chi tháng này */}
-        <IncomeExpenseChart
-          income={summary.income}
-          expenses={summary.expenses}
         />
 
         {/* Hóa đơn — có nút "Xem tất cả" + toggle đã trả */}
