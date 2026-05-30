@@ -33,6 +33,8 @@ import BudgetsScreen from './screens/tabs/BudgetsScreen';
 import PotsScreen from './screens/tabs/PotsScreen';
 import ProfileScreen from './screens/tabs/ProfileScreen';
 import BillsScreen from './screens/tabs/BillsScreen';
+import GroupFundsScreen from './screens/tabs/GroupFundsScreen';
+import GroupFundDetailScreen from './screens/tabs/GroupFundDetailScreen';
 
 // Design Tokens & Auth
 import { Colors } from './constants/Colors';
@@ -86,6 +88,11 @@ function MainTabs() {
         options={{ title: 'Ngân sách', tabBarIcon: ({ color, size }) => <Ionicons name="pie-chart-outline" size={size} color={color} /> }}
       />
       <Tab.Screen
+        name="GroupFunds"
+        component={GroupFundsScreen}
+        options={{ title: 'Quỹ nhóm', tabBarIcon: ({ color, size }) => <Ionicons name="people-outline" size={size} color={color} /> }}
+      />
+      <Tab.Screen
         name="Pots"
         component={PotsScreen}
         options={{ title: 'Tiết kiệm', tabBarIcon: ({ color, size }) => <Ionicons name="wallet-outline" size={size} color={color} /> }}
@@ -130,6 +137,7 @@ function RootNavigator() {
         ) : (
           <>
             <Stack.Screen name="MainTabs" component={MainTabs} />
+            <Stack.Screen name="GroupFundDetail" component={GroupFundDetailScreen} options={{ presentation: 'card' }} />
             <Stack.Screen name="Bills" component={BillsScreen} options={{ presentation: 'card' }} />
           </>
         )}
