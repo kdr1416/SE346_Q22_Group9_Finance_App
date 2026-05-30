@@ -60,6 +60,17 @@ export function AuthProvider({ children }) {
     return await logout();
   };
 
+  const updateProfileName = async (newName) => {
+    if (!session?.user?.id) return;
+    const { error } = await supabase
+      .from('profiles')
+      .update({ name: newName })
+      .eq('id', session.user.id);
+    
+    if (error) throw error;
+    setProfile(prev => prev ? { ...prev, name: newName } : null);
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -70,6 +81,7 @@ export function AuthProvider({ children }) {
         signIn,
         signUp,
         signOut,
+        updateProfileName,
       }}
     >
       {children}

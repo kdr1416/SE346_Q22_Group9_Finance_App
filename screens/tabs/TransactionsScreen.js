@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import TransactionItem from '../../components/finance/TransactionItem';
@@ -12,7 +12,8 @@ import useTransactions from '../../hooks/tabs/useTransactions';
 export default function TransactionsScreen() {
   const { 
     categories, activeCategory, setActiveCategory, 
-    filtered, saveTransaction, deleteTransaction 
+    filtered, saveTransaction, deleteTransaction,
+    searchQuery, setSearchQuery
   } = useTransactions();
 
   const [modalVisible, setModalVisible] = useState(false);
@@ -49,6 +50,24 @@ export default function TransactionsScreen() {
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.title}>Giao dịch</Text>
+      </View>
+
+      {/* Thanh tìm kiếm */}
+      <View style={styles.searchBarContainer}>
+        <Ionicons name="search-outline" size={20} color={Colors.onSurfaceVariant} style={styles.searchIcon} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Tìm kiếm giao dịch..."
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholderTextColor={Colors.onSurfaceVariant}
+          autoCapitalize="none"
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearBtn}>
+            <Ionicons name="close-circle" size={18} color={Colors.onSurfaceVariant} />
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Filter chips */}
@@ -149,5 +168,28 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 6,
-  }
+  },
+  searchBarContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surfaceContainerHigh,
+    borderRadius: Spacing.radiusLg,
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    height: 46,
+  },
+  searchIcon: {
+    marginRight: Spacing.xs,
+  },
+  searchInput: {
+    flex: 1,
+    fontFamily: Typography.fontBody_Regular,
+    fontSize: Typography.bodyMd,
+    color: Colors.onSurface,
+    height: '100%',
+  },
+  clearBtn: {
+    padding: Spacing.xs,
+  },
 });
