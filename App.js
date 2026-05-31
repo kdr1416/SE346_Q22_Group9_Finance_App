@@ -33,6 +33,8 @@ import BudgetsScreen from './screens/tabs/BudgetsScreen';
 import FundsScreen from './screens/tabs/FundsScreen';
 import ProfileScreen from './screens/tabs/ProfileScreen';
 import BillsScreen from './screens/tabs/BillsScreen';
+import GroupFundsScreen from './screens/tabs/GroupFundsScreen';
+import GroupFundDetailScreen from './screens/tabs/GroupFundDetailScreen';
 
 // Design Tokens & Auth
 import { Colors } from './constants/Colors';
@@ -130,6 +132,7 @@ function RootNavigator() {
         ) : (
           <>
             <Stack.Screen name="MainTabs" component={MainTabs} />
+            <Stack.Screen name="GroupFundDetail" component={GroupFundDetailScreen} options={{ presentation: 'card' }} />
             <Stack.Screen name="Bills" component={BillsScreen} options={{ presentation: 'card' }} />
           </>
         )}
