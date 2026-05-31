@@ -1,35 +1,55 @@
 import { useAuth } from '../../contexts/AuthContext';
 import { Alert } from 'react-native';
+import { supabase } from '../../lib/supabase';
 
 export default function useProfile() {
-  const { profile, user, signOut } = useAuth();
+  const { profile, user, signOut, updateProfileName } = useAuth();
 
   const handleLogout = async () => {
     try {
       await signOut();
-      // Auth Guard in App.js will reroute automatically
     } catch (error) {
       console.error('Lỗi đăng xuất:', error);
       Alert.alert('Lỗi', 'Không thể đăng xuất, vui lòng thử lại.');
     }
   };
 
-  const handleEditProfile = () => {
-    console.log('Chỉnh sửa hồ sơ');
+  const handleSaveName = async (newName) => {
+    if (!newName.trim()) {
+      Alert.alert('Thông báo', 'Họ tên không được để trống.');
+      return;
+    }
+    try {
+      await updateProfileName(newName.trim());
+    } catch (error) {
+      console.error('Lỗi đổi tên:', error);
+      Alert.alert('Lỗi', 'Không thể cập nhật tên, vui lòng thử lại.');
+      throw error;
+    }
   };
 
-  const handleChangePassword = () => {
-    console.log('Đổi mật khẩu');
+  const handleUpdatePassword = async (newPassword) => {
+    if (newPassword.length < 6) {
+      Alert.alert('Thông báo', 'Mật khẩu phải tối thiểu 6 ký tự.');
+      return;
+    }
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+    } catch (error) {
+      console.error('Lỗi đổi mật khẩu:', error);
+      Alert.alert('Lỗi', 'Không thể đổi mật khẩu: ' + error.message);
+      throw error;
+    }
   };
 
   return {
-    // Thay vì dùng mockUser, dùng thông tin profile thật từ DB
     user: profile ? {
       name: profile.name,
       email: user?.email,
     } : { name: 'Người dùng', email: '' },
     handleLogout,
-    handleEditProfile,
-    handleChangePassword,
+    handleSaveName,
+    handleUpdatePassword,
   };
 }

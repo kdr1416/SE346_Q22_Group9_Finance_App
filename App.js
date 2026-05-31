@@ -30,7 +30,7 @@ import RegisterScreen from './screens/auth/RegisterScreen';
 import OverviewScreen from './screens/tabs/OverviewScreen';
 import TransactionsScreen from './screens/tabs/TransactionsScreen';
 import BudgetsScreen from './screens/tabs/BudgetsScreen';
-import PotsScreen from './screens/tabs/PotsScreen';
+import FundsScreen from './screens/tabs/FundsScreen';
 import ProfileScreen from './screens/tabs/ProfileScreen';
 import BillsScreen from './screens/tabs/BillsScreen';
 import GroupFundsScreen from './screens/tabs/GroupFundsScreen';
@@ -88,14 +88,9 @@ function MainTabs() {
         options={{ title: 'Ngân sách', tabBarIcon: ({ color, size }) => <Ionicons name="pie-chart-outline" size={size} color={color} /> }}
       />
       <Tab.Screen
-        name="GroupFunds"
-        component={GroupFundsScreen}
-        options={{ title: 'Quỹ nhóm', tabBarIcon: ({ color, size }) => <Ionicons name="people-outline" size={size} color={color} /> }}
-      />
-      <Tab.Screen
-        name="Pots"
-        component={PotsScreen}
-        options={{ title: 'Tiết kiệm', tabBarIcon: ({ color, size }) => <Ionicons name="wallet-outline" size={size} color={color} /> }}
+        name="Funds"
+        component={FundsScreen}
+        options={{ title: 'Quỹ', tabBarIcon: ({ color, size }) => <Ionicons name="wallet-outline" size={size} color={color} /> }}
       />
       <Tab.Screen
         name="Profile"
@@ -152,6 +147,7 @@ export default function App() {
     Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold,
     Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold,
   });
+  console.log('Fonts loaded:', fontsLoaded, 'Font error:', fontError);
 
   const onLayoutRootView = useCallback(async () => {
     if (fontsLoaded || fontError) {
