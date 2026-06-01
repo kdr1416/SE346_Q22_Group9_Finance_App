@@ -42,7 +42,6 @@ const styles = StyleSheet.create({
     borderRadius: Spacing.radiusLg,
     alignItems: 'center',
     justifyContent: 'center',
-    width: '100%',
   },
   primary: {
     backgroundColor: Colors.primary,
