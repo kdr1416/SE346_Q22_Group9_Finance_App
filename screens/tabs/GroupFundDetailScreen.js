@@ -10,9 +10,11 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
 import { Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
 import { Spacing } from '../../constants/Spacing';
@@ -28,7 +30,9 @@ export default function GroupFundDetailScreen({ route, navigation }) {
   const { user } = useAuth();
 
   const {
+    fundDetail,
     members,
+    pendingRequests,
     paymentRequests,
     expenses,
     activityLogs,
@@ -39,18 +43,25 @@ export default function GroupFundDetailScreen({ route, navigation }) {
     isOwner,
     isAdminOrOwner,
     refreshAll,
+    handleApproveJoin,
+    handleRejectJoin,
     handleCreatePaymentRequest,
     handleSubmitPayment,
     handleConfirmPayment,
     handleCreateExpense,
     handleApproveExpense,
     handleRejectExpense,
+    handleUpdateFund,
+    handleLeaveGroup,
+    handleCloseGroup,
+    handleStopPaymentRequest,
     loadRequestMembers,
   } = useGroupFundDetail(fund);
 
   const [showCreateRequest, setShowCreateRequest] = useState(false);
   const [showCreateExpense, setShowCreateExpense] = useState(false);
   const [showRequestDetail, setShowRequestDetail] = useState(null);
+  const [showUpdateFund, setShowUpdateFund] = useState(false);
   const [requestMembers, setRequestMembers] = useState([]);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -62,6 +73,18 @@ export default function GroupFundDetailScreen({ route, navigation }) {
   const [expAmount, setExpAmount] = useState('');
   const [expCategory, setExpCategory] = useState('');
   const [expNote, setExpNote] = useState('');
+
+  const [updateName, setUpdateName] = useState('');
+  const [updateDesc, setUpdateDesc] = useState('');
+  const [updateTarget, setUpdateTarget] = useState('');
+
+  // Khởi tạo thông tin cho Modal chỉnh sửa
+  const initUpdateModal = () => {
+    setUpdateName(fundDetail?.name || fund.name);
+    setUpdateDesc(fundDetail?.description || fund.description || '');
+    setUpdateTarget(fundDetail?.targetAmount ? String(fundDetail.targetAmount) : '');
+    setShowUpdateFund(true);
+  };
 
   const formatDate = (value) => {
     if (!value) return '';
@@ -139,7 +162,7 @@ export default function GroupFundDetailScreen({ route, navigation }) {
         text: member.role === 'admin' ? 'Giảm quyền' : 'Cấp quyền quản trị',
         onPress: async () => {
           try {
-            await updateMemberRoleInDB(member.memberId, member.role === 'admin' ? 'member' : 'admin');
+            await updateMemberRoleInDB(member.memberId, member.role === 'admin' ? 'member' : 'admin', fund.id, user.id, member.name);
             await refreshAll();
           } catch (error) {
             Alert.alert('Lỗi', 'Không thể cập nhật vai trò thành viên.');
@@ -151,7 +174,7 @@ export default function GroupFundDetailScreen({ route, navigation }) {
         style: 'destructive',
         onPress: async () => {
           try {
-            await removeMemberFromDB(member.memberId);
+            await removeMemberFromDB(member.memberId, fund.id, user.id, member.name);
             await refreshAll();
           } catch (error) {
             Alert.alert('Lỗi', 'Không thể xóa thành viên.');
@@ -202,6 +225,23 @@ export default function GroupFundDetailScreen({ route, navigation }) {
     }
   };
 
+  const updateFund = async () => {
+    if (!updateName.trim()) {
+      Alert.alert('Thiếu thông tin', 'Vui lòng nhập tên quỹ nhóm.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await handleUpdateFund(updateName.trim(), updateDesc.trim(), updateTarget ? Number(updateTarget) : null);
+      setShowUpdateFund(false);
+      Alert.alert('Thành công', 'Đã cập nhật thông tin quỹ nhóm.');
+    } catch (error) {
+      Alert.alert('Lỗi', error?.message || 'Không thể cập nhật thông tin.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const sections = [
     { key: 'requests', label: 'Thu quỹ', icon: 'cash-outline' },
     { key: 'expenses', label: 'Chi quỹ', icon: 'cart-outline' },
@@ -214,15 +254,44 @@ export default function GroupFundDetailScreen({ route, navigation }) {
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color={Colors.onSurface} />
         </TouchableOpacity>
-        <Text style={styles.title} numberOfLines={1}>{fund?.name || 'Chi tiết quỹ'}</Text>
-        <View style={{ width: 24 }} />
+        <Text style={styles.title} numberOfLines={1}>{fundDetail?.name || fund?.name || 'Chi tiết quỹ'}</Text>
+        {isOwner ? (
+          <TouchableOpacity onPress={initUpdateModal}>
+            <Ionicons name="settings-outline" size={24} color={Colors.onSurface} />
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 24 }} />
+        )}
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.container}>
-        <View style={styles.balanceCard}>
-          <Text style={styles.balanceLabel}>Số dư Quỹ nhóm</Text>
-          <Text style={styles.balanceValue}>{formatVND(fund.currentBalance)}</Text>
-          <Text style={styles.balanceMeta}>Mã mời: {fund.inviteCode}</Text>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.container}
+        refreshControl={
+          <RefreshControl refreshing={loading} onRefresh={refreshAll} tintColor={Colors.primary} />
+        }
+      >
+        <View style={[styles.balanceCard, fundDetail?.status === 'closed' && styles.balanceCardClosed]}>
+          <View style={styles.balanceHeaderRow}>
+            <Text style={styles.balanceLabel}>Số dư Quỹ nhóm</Text>
+            {fundDetail?.status === 'closed' && (
+              <View style={styles.closedBadge}>
+                <Ionicons name="lock-closed" size={10} color="#fff" style={{ marginRight: 4 }} />
+                <Text style={styles.closedBadgeText}>Đã đóng</Text>
+              </View>
+            )}
+          </View>
+          <Text style={styles.balanceValue}>{formatVND(fundDetail?.currentBalance ?? fund.currentBalance)}</Text>
+          <TouchableOpacity
+            style={styles.codeBadge}
+            onPress={async () => {
+              const code = fundDetail?.inviteCode || fund.inviteCode;
+              await Clipboard.setStringAsync(code);
+              Alert.alert('Đã sao chép 📋', `Mã mời "${code}" đã được sao chép vào bộ nhớ tạm.`);
+            }}
+          >
+            <Text style={styles.codeText}>Mã mời: {fundDetail?.inviteCode || fund.inviteCode} 📋</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.tabRow}>
@@ -242,7 +311,9 @@ export default function GroupFundDetailScreen({ route, navigation }) {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Yêu cầu thu quỹ</Text>
-              <AppButton label="Tạo mới" onPress={() => setShowCreateRequest(true)} style={styles.smallActionButton} />
+              {isAdminOrOwner && fundDetail?.status === 'active' && (
+                <AppButton label="Tạo mới" onPress={() => setShowCreateRequest(true)} style={styles.smallActionButton} />
+              )}
             </View>
             {paymentRequests.length === 0 ? (
               <Text style={styles.emptyText}>Chưa có yêu cầu thu quỹ nào.</Text>
@@ -259,6 +330,21 @@ export default function GroupFundDetailScreen({ route, navigation }) {
                     </View>
                   </View>
                   <Text style={styles.cardAmount}>Mỗi người: {formatVND(request.amountPerMember)}</Text>
+                  
+                  {/* Thanh tiến trình Progress Bar */}
+                  {request.totalExpectedAmount > 0 && (
+                    <View style={styles.progressContainer}>
+                      <View style={styles.progressBarBg}>
+                        <View style={[styles.progressBarFill, { 
+                          width: `${Math.min((request.totalCollectedAmount / request.totalExpectedAmount) * 100, 100)}%` 
+                        }]} />
+                      </View>
+                      <Text style={styles.progressPercentText}>
+                        {Math.round((request.totalCollectedAmount / request.totalExpectedAmount) * 100)}%
+                      </Text>
+                    </View>
+                  )}
+                  
                   <Text style={styles.cardMeta}>Đã thu {formatVND(request.totalCollectedAmount)} / {formatVND(request.totalExpectedAmount)}</Text>
                 </TouchableOpacity>
               ))
@@ -270,7 +356,9 @@ export default function GroupFundDetailScreen({ route, navigation }) {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Khoản chi</Text>
-              <AppButton label="Tạo mới" onPress={() => setShowCreateExpense(true)} style={styles.smallActionButton} />
+              {fundDetail?.status === 'active' && (
+                <AppButton label="Tạo mới" onPress={() => setShowCreateExpense(true)} style={styles.smallActionButton} />
+              )}
             </View>
             {expenses.length === 0 ? (
               <Text style={styles.emptyText}>Chưa có khoản chi nào.</Text>
@@ -331,6 +419,37 @@ export default function GroupFundDetailScreen({ route, navigation }) {
           </View>
         )}
 
+        {/* ===== YÊU CẦU THAM GIA CHỜ DUYỆT ===== */}
+        {isAdminOrOwner && pendingRequests.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>🔔 Yêu cầu tham gia ({pendingRequests.length})</Text>
+            {pendingRequests.map((req) => (
+              <View key={req.memberId} style={[styles.card, { flexDirection: 'row', alignItems: 'center' }]}>
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>{req.name.charAt(0).toUpperCase()}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.memberName}>{req.name}</Text>
+                  <Text style={styles.memberRole}>Đang chờ duyệt</Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.actionButtonMini, styles.actionApprove]}
+                  onPress={() => handleApproveJoin(req.memberId, req.name)}
+                >
+                  <Ionicons name="checkmark" size={16} color="#fff" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.actionButtonMini, styles.actionReject, { marginLeft: 6 }]}
+                  onPress={() => handleRejectJoin(req.memberId, req.name)}
+                >
+                  <Ionicons name="close" size={16} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* ===== DANH SÁCH THÀNH VIÊN ===== */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Thành viên ({members.length})</Text>
           {isOwner && <Text style={styles.hintText}>Chạm vào thành viên để cấp quyền hoặc xóa khỏi nhóm.</Text>}
@@ -346,15 +465,78 @@ export default function GroupFundDetailScreen({ route, navigation }) {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.memberName}>{member.name}</Text>
-                  <Text style={styles.memberRole}>{member.role === 'owner' ? 'Chủ quỹ' : member.role === 'admin' ? 'Admin' : 'Thành viên'}</Text>
+                  <Text style={styles.memberRole}>{member.role === 'owner' ? 'Chủ quỹ 👑' : member.role === 'admin' ? 'Admin 🛡️' : 'Thành viên 👥'}</Text>
                 </View>
                 {isOwner && member.role !== 'owner' && <Ionicons name="ellipsis-vertical" size={16} color={Colors.onSurfaceVariant} />}
               </TouchableOpacity>
             ))
           )}
         </View>
+
+        {/* ===== HÀNH ĐỘNG HÀNH CHÍNH QUỸ ===== */}
+        <View style={[styles.section, { marginTop: Spacing.sm }]}>
+          {isOwner && fundDetail?.status === 'active' && (
+            <AppButton
+              label="Đóng quỹ nhóm"
+              variant="secondary"
+              onPress={() => {
+                Alert.alert(
+                  'Xác nhận đóng quỹ 🔒',
+                  'Bạn có chắc chắn muốn đóng quỹ nhóm này? Thao tác này sẽ vô hiệu hóa mọi khoản thu và chi mới.',
+                  [
+                    { text: 'Hủy', style: 'cancel' },
+                    {
+                      text: 'Đóng quỹ',
+                      style: 'destructive',
+                      onPress: async () => {
+                        try {
+                          await handleCloseGroup();
+                          Alert.alert('Thành công', 'Đã đóng quỹ nhóm.');
+                        } catch (err) {
+                          Alert.alert('Lỗi', err.message);
+                        }
+                      }
+                    }
+                  ]
+                );
+              }}
+              style={styles.dangerButton}
+            />
+          )}
+
+          {!isOwner && (
+            <AppButton
+              label="Rời khỏi quỹ nhóm"
+              variant="secondary"
+              onPress={() => {
+                Alert.alert(
+                  'Xác nhận rời quỹ 🚪',
+                  'Bạn có chắc chắn muốn rời khỏi quỹ nhóm này không?',
+                  [
+                    { text: 'Hủy', style: 'cancel' },
+                    {
+                      text: 'Rời nhóm',
+                      style: 'destructive',
+                      onPress: async () => {
+                        try {
+                          await handleLeaveGroup();
+                          Alert.alert('Thành công', 'Bạn đã rời khỏi quỹ nhóm.');
+                          navigation.goBack();
+                        } catch (err) {
+                          Alert.alert('Lỗi', err.message);
+                        }
+                      }
+                    }
+                  ]
+                );
+              }}
+              style={styles.dangerButton}
+            />
+          )}
+        </View>
       </ScrollView>
 
+      {/* Modal tạo yêu cầu nộp quỹ */}
       <Modal visible={showCreateRequest} animationType="slide" transparent onRequestClose={() => setShowCreateRequest(false)}>
         <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={styles.modalCard}>
@@ -370,6 +552,7 @@ export default function GroupFundDetailScreen({ route, navigation }) {
         </KeyboardAvoidingView>
       </Modal>
 
+      {/* Modal tạo khoản chi */}
       <Modal visible={showCreateExpense} animationType="slide" transparent onRequestClose={() => setShowCreateExpense(false)}>
         <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={styles.modalCard}>
@@ -386,18 +569,67 @@ export default function GroupFundDetailScreen({ route, navigation }) {
         </KeyboardAvoidingView>
       </Modal>
 
+      {/* Modal cập nhật thông tin quỹ */}
+      <Modal visible={showUpdateFund} animationType="slide" transparent onRequestClose={() => setShowUpdateFund(false)}>
+        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Cập nhật thông tin quỹ</Text>
+            <AppInput label="Tên quỹ nhóm" value={updateName} onChangeText={setUpdateName} placeholder="Nhập tên quỹ" />
+            <AppInput label="Mô tả" value={updateDesc} onChangeText={setUpdateDesc} placeholder="Nhập mô tả" />
+            <AppInput label="Mục tiêu nộp (tùy chọn)" value={updateTarget} onChangeText={setUpdateTarget} placeholder="Ví dụ: 5000000" keyboardType="numeric" />
+            <View style={styles.modalButtons}>
+              <AppButton label="Hủy" variant="secondary" onPress={() => setShowUpdateFund(false)} style={{ flex: 1, marginRight: Spacing.sm }} />
+              <AppButton label="Cập nhật" onPress={updateFund} style={{ flex: 1 }} loading={submitting} />
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Modal chi tiết yêu cầu nộp */}
       <Modal visible={Boolean(showRequestDetail)} animationType="slide" transparent onRequestClose={() => setShowRequestDetail(null)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCardLarge}>
             <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>{showRequestDetail?.title || 'Chi tiết yêu cầu'}</Text>
-                <TouchableOpacity onPress={() => setShowRequestDetail(null)}>
-                  <Ionicons name="close" size={24} color={Colors.onSurface} />
+              <Text style={styles.modalTitle}>{showRequestDetail?.title || 'Chi tiết yêu cầu'}</Text>
+              <TouchableOpacity onPress={() => setShowRequestDetail(null)}>
+                <Ionicons name="close" size={24} color={Colors.onSurface} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.modalSubtitle}>{showRequestDetail?.description || 'Không có mô tả'}</Text>
+            <Text style={styles.modalMeta}>Mỗi người: {formatVND(showRequestDetail?.amountPerMember || 0)}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.md }}>
+              <Text style={[styles.modalMeta, { marginBottom: 0 }]}>Trạng thái: {showRequestDetail?.status === 'collecting' ? 'Đang thu' : 'Hoàn tất'}</Text>
+              {isAdminOrOwner && showRequestDetail?.status === 'collecting' && (
+                <TouchableOpacity
+                  style={styles.stopRequestButton}
+                  onPress={() => {
+                    Alert.alert(
+                      'Dừng yêu cầu thu quỹ 🔒',
+                      'Bạn có chắc chắn muốn dừng yêu cầu thu quỹ này không? Sau khi dừng, thành viên khác sẽ không thể tiếp tục nộp tiền.',
+                      [
+                        { text: 'Hủy', style: 'cancel' },
+                        {
+                          text: 'Dừng thu',
+                          style: 'destructive',
+                          onPress: async () => {
+                            try {
+                              await handleStopPaymentRequest(showRequestDetail.id, showRequestDetail.title);
+                              setShowRequestDetail(null);
+                              Alert.alert('Thành công', 'Đã dừng yêu cầu thu quỹ.');
+                            } catch (err) {
+                              Alert.alert('Lỗi', err.message);
+                            }
+                          }
+                        }
+                      ]
+                    );
+                  }}
+                >
+                  <Ionicons name="stop-circle" size={14} color="#EF4444" style={{ marginRight: 4 }} />
+                  <Text style={styles.stopRequestButtonText}>Dừng thu</Text>
                 </TouchableOpacity>
-              </View>
-              <Text style={styles.modalSubtitle}>{showRequestDetail?.description || 'Không có mô tả'}</Text>
-              <Text style={styles.modalMeta}>Mỗi người: {formatVND(showRequestDetail?.amountPerMember || 0)}</Text>
-              <Text style={styles.modalMeta}>Trạng thái: {showRequestDetail?.status}</Text>
+              )}
+            </View>
 
             <View style={styles.requestMembersList}>
               {loadingDetail ? (
@@ -409,10 +641,10 @@ export default function GroupFundDetailScreen({ route, navigation }) {
                   <View key={item.id} style={styles.requestMemberRow}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.memberName}>{item.name}</Text>
-                      <Text style={styles.memberRole}>Trạng thái: {item.status}</Text>
+                      <Text style={styles.memberRole}>Trạng thái: {item.status === 'unpaid' ? 'Chưa đóng' : item.status === 'pending_confirm' ? 'Chờ xác nhận' : 'Đã đóng'}</Text>
                       <Text style={styles.memberMeta}>Nợ: {formatVND(item.amountDue)} · Đã đóng: {formatVND(item.amountPaid)}</Text>
                     </View>
-                    {user?.id === item.memberId && item.status === 'unpaid' && (
+                    {user?.id === item.userId && item.status === 'unpaid' && (
                       <TouchableOpacity style={styles.requestAction} onPress={() => submitRequestPayment(item.id, '')}>
                         <Text style={styles.requestActionText}>Nộp</Text>
                       </TouchableOpacity>
@@ -439,7 +671,11 @@ const styles = StyleSheet.create({
   title: { fontFamily: Typography.fontHeadline_Bold, fontSize: Typography.headlineSm, color: Colors.onSurface, flex: 1, textAlign: 'center', marginHorizontal: Spacing.md },
   container: { padding: Spacing.lg, paddingBottom: Spacing.xl },
   balanceCard: { backgroundColor: Colors.primary, borderRadius: Spacing.radiusXl, padding: Spacing.xl, marginBottom: Spacing.lg },
-  balanceLabel: { fontFamily: Typography.fontBody_Regular, color: Colors.onPrimary, marginBottom: Spacing.xs },
+  balanceCardClosed: { backgroundColor: '#9E9E9E' },
+  balanceHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.xs },
+  closedBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)', paddingHorizontal: Spacing.sm, paddingVertical: 2, borderRadius: Spacing.radiusFull },
+  closedBadgeText: { fontFamily: Typography.fontBody_Bold, fontSize: 10, color: Colors.surface },
+  balanceLabel: { fontFamily: Typography.fontBody_Regular, color: Colors.onPrimary },
   balanceValue: { fontFamily: Typography.fontHeadline_ExtraBold, fontSize: Typography.displayLg, color: Colors.onPrimary, marginBottom: Spacing.sm },
   balanceMeta: { fontFamily: Typography.fontBody_Regular, color: Colors.onPrimary, opacity: 0.9 },
   tabRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.lg },
@@ -457,6 +693,10 @@ const styles = StyleSheet.create({
   cardSubtitle: { fontFamily: Typography.fontBody_Regular, fontSize: Typography.bodyXs, color: Colors.onSurfaceVariant, marginTop: Spacing.xs },
   cardAmount: { fontFamily: Typography.fontHeadline_Bold, fontSize: Typography.titleMd, color: Colors.onSurface, marginBottom: Spacing.xs },
   cardMeta: { fontFamily: Typography.fontBody_Regular, fontSize: Typography.bodySm, color: Colors.onSurfaceVariant },
+  progressContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.sm },
+  progressBarBg: { flex: 1, height: 6, backgroundColor: '#E2E8F0', borderRadius: 3, overflow: 'hidden' },
+  progressBarFill: { height: '100%', backgroundColor: Colors.primary, borderRadius: 3 },
+  progressPercentText: { marginLeft: Spacing.sm, fontSize: 11, color: Colors.onSurfaceVariant, fontFamily: Typography.fontBody_Bold },
   statusBadge: { paddingVertical: 4, paddingHorizontal: Spacing.sm, borderRadius: Spacing.radiusFull },
   statusText: { fontFamily: Typography.fontBody_Bold, fontSize: Typography.bodyXs, color: Colors.surface },
   statusPending: { backgroundColor: Colors.secondary },
@@ -490,4 +730,7 @@ const styles = StyleSheet.create({
   requestAction: { paddingVertical: Spacing.xs, paddingHorizontal: Spacing.sm, backgroundColor: Colors.primary, borderRadius: Spacing.radiusLg },
   requestActionConfirm: { paddingVertical: Spacing.xs, paddingHorizontal: Spacing.sm, backgroundColor: '#22C55E', borderRadius: Spacing.radiusLg },
   requestActionText: { color: Colors.surface, fontFamily: Typography.fontBody_Medium },
+  dangerButton: { borderColor: '#EF4444' },
+  stopRequestButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEE2E2', paddingVertical: Spacing.xs, paddingHorizontal: Spacing.sm, borderRadius: Spacing.radiusLg, borderWidth: 1, borderColor: '#FCA5A5' },
+  stopRequestButtonText: { fontFamily: Typography.fontBody_Bold, fontSize: 11, color: '#EF4444' },
 });

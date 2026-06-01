@@ -88,18 +88,18 @@ export const joinGroupFundByCode = async (userId, inviteCode) => {
     throw new Error('Mã mời không tồn tại hoặc quỹ nhóm đã bị khóa.');
   }
 
-  const { data: existingMember, error: existingError } = await supabase
+  const { data: existingMember } = await supabase
     .from('group_fund_members')
     .select('*')
     .eq('group_fund_id', fund.id)
     .eq('user_id', userId)
+    .in('status', ['active', 'pending'])
     .maybeSingle();
 
-  if (existingError) {
-    throw existingError;
-  }
-
   if (existingMember) {
+    if (existingMember.status === 'pending') {
+      throw new Error('Bạn đã gửi yêu cầu tham gia. Vui lòng chờ chủ quỹ duyệt.');
+    }
     throw new Error('Bạn đã là thành viên của quỹ nhóm này rồi.');
   }
 
@@ -109,7 +109,7 @@ export const joinGroupFundByCode = async (userId, inviteCode) => {
       group_fund_id: fund.id,
       user_id: userId,
       role: 'member',
-      status: 'active',
+      status: 'pending',
     });
 
   if (joinError) throw joinError;
@@ -141,25 +141,50 @@ export const fetchGroupMembers = async (groupFundId) => {
 /**
  * 5. [PHÂN QUYỀN] Cập nhật vai trò thành viên (Chỉ dành cho Owner)
  */
-export const updateMemberRoleInDB = async (memberId, newRole) => {
+export const updateMemberRoleInDB = async (memberId, newRole, groupFundId, actorId, memberName) => {
   const { error } = await supabase
     .from('group_fund_members')
     .update({ role: newRole })
     .eq('id', memberId);
 
   if (error) throw error;
+
+  // Ghi log hoạt động
+  if (groupFundId && actorId) {
+    const actionType = newRole === 'admin' ? 'promote_admin' : 'demote_member';
+    await addActivityLog(
+      groupFundId,
+      actorId,
+      actionType,
+      'member',
+      memberId,
+      `${newRole === 'admin' ? 'Cấp quyền Admin cho' : 'Hạ quyền'} ${memberName}`
+    );
+  }
 };
 
 /**
  * 6. [PHÂN QUYỀN] Xóa thành viên ra khỏi quỹ
  */
-export const removeMemberFromDB = async (memberId) => {
+export const removeMemberFromDB = async (memberId, groupFundId, actorId, memberName) => {
   const { error } = await supabase
     .from('group_fund_members')
     .update({ status: 'removed' })
     .eq('id', memberId);
 
   if (error) throw error;
+
+  // Ghi log hoạt động
+  if (groupFundId && actorId) {
+    await addActivityLog(
+      groupFundId,
+      actorId,
+      'remove_member',
+      'member',
+      memberId,
+      `Xóa ${memberName} khỏi quỹ nhóm`
+    );
+  }
 };
 
 // =====================================================
@@ -246,26 +271,46 @@ export const fetchPaymentRequests = async (groupFundId) => {
   }));
 };
 
+/**
+ * 9. Lấy chi tiết trạng thái nộp của từng thành viên trong 1 payment request
+ */
 export const fetchPaymentRequestMembers = async (paymentRequestId) => {
+  // Bước 1: Lấy danh sách payment_request_members kèm thông tin group_fund_members
   const { data, error } = await supabase
     .from('payment_request_members')
-    .select('*, profiles:member_id(name)')
-    .eq('payment_request_id', paymentRequestId)
-    .order('created_at', { ascending: true });
+    .select('*, group_fund_members(id, user_id, role)')
+    .eq('payment_request_id', paymentRequestId);
 
   if (error) throw error;
 
-  return (data || []).map((item) => ({
-    id: item.id,
-    memberId: item.member_id,
-    name: item.profiles?.name || 'Thành viên ẩn',
-    amountDue: Number(item.amount_due),
-    amountPaid: Number(item.amount_paid),
-    status: item.status,
-    submittedAt: item.submitted_at,
-    note: item.note,
-    confirmedBy: item.confirmed_by,
-    confirmedAt: item.confirmed_at,
+  // Bước 2: Lấy tên profiles cho tất cả user_id
+  const userIds = (data || [])
+    .map((prm) => prm.group_fund_members?.user_id)
+    .filter(Boolean);
+
+  let profileMap = {};
+  if (userIds.length > 0) {
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, name')
+      .in('id', userIds);
+
+    (profiles || []).forEach((p) => {
+      profileMap[p.id] = p.name;
+    });
+  }
+
+  return (data || []).map((prm) => ({
+    id: prm.id,
+    memberId: prm.member_id,
+    userId: prm.group_fund_members?.user_id,
+    name: profileMap[prm.group_fund_members?.user_id] || 'Ẩn danh',
+    amountDue: Number(prm.amount_due),
+    amountPaid: Number(prm.amount_paid),
+    status: prm.status,
+    submittedAt: prm.submitted_at,
+    confirmedAt: prm.confirmed_at,
+    note: prm.note,
   }));
 };
 
@@ -289,58 +334,91 @@ export const confirmPayment = async (
   confirmedByUserId,
   amountDue,
 ) => {
-  const { error: updateError } = await supabase
-    .from('payment_request_members')
-    .update({
-      status: 'paid',
-      amount_paid: amountDue,
-      confirmed_by: confirmedByUserId,
-      confirmed_at: new Date().toISOString(),
-    })
-    .eq('id', paymentRequestMemberId);
+  // 1. Tải toàn bộ dữ liệu cần thiết trong duy nhất 1 roundtrip đồng thời (Parallel SELECT)
+  const [reqRes, memberRes] = await Promise.all([
+    supabase
+      .from('payment_requests')
+      .select('title, total_collected_amount, group_funds(name, current_balance)')
+      .eq('id', paymentRequestId)
+      .single(),
+    supabase
+      .from('payment_request_members')
+      .select('status, group_fund_members(user_id, profiles(name))')
+      .eq('id', paymentRequestMemberId)
+      .single()
+  ]);
 
-  if (updateError) throw updateError;
+  if (reqRes.error) throw reqRes.error;
+  if (memberRes.error) throw memberRes.error;
 
-  const { data: currentReq, error: reqError } = await supabase
-    .from('payment_requests')
-    .select('total_collected_amount')
-    .eq('id', paymentRequestId)
-    .single();
+  // Nếu trạng thái đã là 'paid' (đã được xác nhận), kết thúc sớm để tránh tạo trùng lặp
+  if (memberRes.data?.status === 'paid') {
+    return;
+  }
 
-  if (reqError) throw reqError;
+  const newCollected = Number(reqRes.data?.total_collected_amount || 0) + amountDue;
+  const newBalance = Number(reqRes.data?.group_funds?.current_balance || 0) + amountDue;
+  const targetUserId = memberRes.data?.group_fund_members?.user_id;
+  const payerName = memberRes.data?.group_fund_members?.profiles?.name || 'Thành viên';
+  const fundName = reqRes.data?.group_funds?.name || 'Quỹ nhóm';
+  const requestTitle = reqRes.data?.title || 'Nộp quỹ';
 
-  const newCollected = Number(currentReq.total_collected_amount || 0) + amountDue;
-  const { error: updateReqError } = await supabase
-    .from('payment_requests')
-    .update({ total_collected_amount: newCollected })
-    .eq('id', paymentRequestId);
+  // 2. Thực hiện toàn bộ câu lệnh ghi (UPDATE, INSERT) song song trong roundtrip thứ hai
+  const writePromises = [
+    supabase
+      .from('payment_request_members')
+      .update({
+        status: 'paid',
+        amount_paid: amountDue,
+        confirmed_by: confirmedByUserId,
+        confirmed_at: new Date().toISOString(),
+      })
+      .eq('id', paymentRequestMemberId),
 
-  if (updateReqError) throw updateReqError;
+    supabase
+      .from('payment_requests')
+      .update({ total_collected_amount: newCollected })
+      .eq('id', paymentRequestId),
 
-  const { data: currentFund, error: fundError } = await supabase
-    .from('group_funds')
-    .select('current_balance')
-    .eq('id', groupFundId)
-    .single();
+    supabase
+      .from('group_funds')
+      .update({ current_balance: newBalance })
+      .eq('id', groupFundId),
 
-  if (fundError) throw fundError;
+    supabase
+      .from('fund_activity_logs')
+      .insert({
+        group_fund_id: groupFundId,
+        actor_id: confirmedByUserId,
+        action_type: 'confirm_payment',
+        target_type: 'payment_request',
+        target_id: paymentRequestId,
+        description: `Xác nhận ${payerName} nộp quỹ ${amountDue.toLocaleString('vi-VN')}đ`,
+      })
+  ];
 
-  const newBalance = Number(currentFund.current_balance || 0) + amountDue;
-  const { error: updateFundError } = await supabase
-    .from('group_funds')
-    .update({ current_balance: newBalance })
-    .eq('id', groupFundId);
+  if (targetUserId) {
+    writePromises.push(
+      supabase
+        .from('transactions')
+        .insert({
+          user_id: targetUserId,
+          title: `Nộp quỹ: ${fundName} (${requestTitle})`,
+          category: 'Khác',
+          amount: amountDue,
+          type: 'expense',
+          icon_name: 'people-outline',
+          date: new Date().toISOString(),
+        })
+    );
+  }
 
-  if (updateFundError) throw updateFundError;
+  const writeResults = await Promise.all(writePromises);
 
-  await addActivityLog(
-    groupFundId,
-    confirmedByUserId,
-    'confirm_payment',
-    'payment_request',
-    paymentRequestId,
-    `Xác nhận nộp quỹ ${amountDue.toLocaleString('vi-VN')}đ`,
-  );
+  // Đảm bảo không có lỗi xảy ra ở bất kỳ tiến trình ghi nào
+  for (const res of writeResults) {
+    if (res.error) throw res.error;
+  }
 };
 
 // =====================================================
@@ -430,41 +508,62 @@ export const fetchGroupExpenses = async (groupFundId) => {
 };
 
 export const approveExpense = async (expenseId, groupFundId, approvedByUserId, amount) => {
-  const { error } = await supabase
-    .from('group_expenses')
-    .update({
-      status: 'approved',
-      approved_by: approvedByUserId,
-      approved_at: new Date().toISOString(),
-    })
-    .eq('id', expenseId);
+  // 1. Tải thông tin trạng thái chi phí và số dư quỹ nhóm song song (Parallel SELECT)
+  const [expenseRes, fundRes] = await Promise.all([
+    supabase
+      .from('group_expenses')
+      .select('status')
+      .eq('id', expenseId)
+      .single(),
+    supabase
+      .from('group_funds')
+      .select('current_balance')
+      .eq('id', groupFundId)
+      .single()
+  ]);
 
-  if (error) throw error;
+  if (expenseRes.error) throw expenseRes.error;
+  if (fundRes.error) throw fundRes.error;
 
-  const { data: currentFund, error: fundError } = await supabase
-    .from('group_funds')
-    .select('current_balance')
-    .eq('id', groupFundId)
-    .single();
+  // Nếu trạng thái đã được duyệt từ trước, kết thúc sớm để tránh trừ trùng số dư
+  if (expenseRes.data?.status === 'approved') {
+    return;
+  }
 
-  if (fundError) throw fundError;
+  const newBalance = Number(fundRes.data?.current_balance || 0) - amount;
 
-  const newBalance = Number(currentFund.current_balance || 0) - amount;
-  const { error: updateFundError } = await supabase
-    .from('group_funds')
-    .update({ current_balance: newBalance })
-    .eq('id', groupFundId);
+  // 2. Thực hiện toàn bộ câu lệnh ghi (UPDATE, INSERT) song song trong roundtrip thứ hai
+  const writeResults = await Promise.all([
+    supabase
+      .from('group_expenses')
+      .update({
+        status: 'approved',
+        approved_by: approvedByUserId,
+        approved_at: new Date().toISOString(),
+      })
+      .eq('id', expenseId),
 
-  if (updateFundError) throw updateFundError;
+    supabase
+      .from('group_funds')
+      .update({ current_balance: newBalance })
+      .eq('id', groupFundId),
 
-  await addActivityLog(
-    groupFundId,
-    approvedByUserId,
-    'approve_expense',
-    'expense',
-    expenseId,
-    `Duyệt khoản chi ${amount.toLocaleString('vi-VN')}đ`,
-  );
+    supabase
+      .from('fund_activity_logs')
+      .insert({
+        group_fund_id: groupFundId,
+        actor_id: approvedByUserId,
+        action_type: 'approve_expense',
+        target_type: 'expense',
+        target_id: expenseId,
+        description: `Duyệt khoản chi ${amount.toLocaleString('vi-VN')}đ`,
+      })
+  ]);
+
+  // Kiểm tra lỗi nếu có bất kỳ tác vụ ghi nào thất bại
+  for (const res of writeResults) {
+    if (res.error) throw res.error;
+  }
 };
 
 export const rejectExpense = async (expenseId, groupFundId, rejectedByUserId) => {
@@ -528,4 +627,165 @@ export const fetchActivityLogs = async (groupFundId) => {
     actorName: log.profiles?.name || 'Hệ thống',
     createdAt: log.created_at,
   }));
+};
+
+// =====================================================
+// NÂNG CẤP: SỐ DƯ REALTIME + DUYỆT THÀNH VIÊN
+// =====================================================
+
+/**
+ * 18. Lấy thông tin quỹ mới nhất (số dư realtime)
+ */
+export const fetchFundDetail = async (groupFundId) => {
+  const { data, error } = await supabase
+    .from('group_funds')
+    .select('*')
+    .eq('id', groupFundId)
+    .single();
+
+  if (error) throw error;
+
+  return {
+    id: data.id,
+    name: data.name,
+    description: data.description,
+    fundType: data.fund_type,
+    currentBalance: Number(data.current_balance || 0),
+    targetAmount: data.target_amount ? Number(data.target_amount) : null,
+    inviteCode: data.invite_code,
+    status: data.status,
+  };
+};
+
+/**
+ * 19. Lấy danh sách yêu cầu tham gia đang chờ duyệt
+ */
+export const fetchPendingJoinRequests = async (groupFundId) => {
+  const { data, error } = await supabase
+    .from('group_fund_members')
+    .select('id, user_id, joined_at, profiles!user_id(id, name)')
+    .eq('group_fund_id', groupFundId)
+    .eq('status', 'pending');
+
+  if (error) throw error;
+
+  return (data || []).map((m) => ({
+    memberId: m.id,
+    userId: m.user_id,
+    name: m.profiles?.name || 'Ẩn danh',
+    requestedAt: m.joined_at,
+  }));
+};
+
+/**
+ * 20. Chủ quỹ/Admin DUYỆT yêu cầu tham gia (pending → active)
+ */
+export const approveJoinRequest = async (memberId, groupFundId, approvedByUserId, memberName) => {
+  const { error } = await supabase
+    .from('group_fund_members')
+    .update({ status: 'active' })
+    .eq('id', memberId);
+
+  if (error) throw error;
+
+  await addActivityLog(groupFundId, approvedByUserId, 'add_member', 'member', memberId,
+    `Duyệt ${memberName} vào quỹ nhóm`);
+};
+
+/**
+ * 21. Chủ quỹ/Admin TỪ CHỐI yêu cầu tham gia (pending → rejected)
+ */
+export const rejectJoinRequest = async (memberId, groupFundId, rejectedByUserId, memberName) => {
+  const { error } = await supabase
+    .from('group_fund_members')
+    .update({ status: 'rejected' })
+    .eq('id', memberId);
+
+  if (error) throw error;
+
+  await addActivityLog(groupFundId, rejectedByUserId, 'reject_member', 'member', memberId,
+    `Từ chối ${memberName} vào quỹ nhóm`);
+};
+
+/**
+ * 22. Cập nhật thông tin quỹ nhóm (Tên, mô tả, số tiền mục tiêu)
+ */
+export const updateGroupFundInfo = async (groupFundId, updates, userId) => {
+  const { error } = await supabase
+    .from('group_funds')
+    .update({
+      name: updates.name,
+      description: updates.description,
+      target_amount: updates.targetAmount || null,
+    })
+    .eq('id', groupFundId);
+
+  if (error) throw error;
+
+  await addActivityLog(groupFundId, userId, 'update_fund', 'fund', groupFundId, 'Cập nhật thông tin quỹ nhóm');
+};
+
+/**
+ * 23. Rời khỏi quỹ nhóm
+ */
+export const leaveGroup = async (groupFundId, userId) => {
+  // A. Kiểm tra chức vụ của thành viên
+  const { data: member, error: checkError } = await supabase
+    .from('group_fund_members')
+    .select('role')
+    .eq('group_fund_id', groupFundId)
+    .eq('user_id', userId)
+    .single();
+
+  if (checkError) throw checkError;
+
+  if (member?.role === 'owner') {
+    throw new Error('Chủ quỹ không thể rời nhóm. Vui lòng chuyển giao quyền Chủ quỹ trước.');
+  }
+
+  // B. Cập nhật trạng thái thành viên thành 'left'
+  const { error } = await supabase
+    .from('group_fund_members')
+    .update({ status: 'left' })
+    .eq('group_fund_id', groupFundId)
+    .eq('user_id', userId);
+
+  if (error) throw error;
+
+  await addActivityLog(groupFundId, userId, 'leave_group', 'member', null, 'Đã rời khỏi quỹ nhóm');
+};
+
+/**
+ * 24. Đóng/kết thúc hoạt động của quỹ nhóm
+ */
+export const closeGroupFund = async (groupFundId, userId) => {
+  const { error } = await supabase
+    .from('group_funds')
+    .update({ status: 'closed' })
+    .eq('id', groupFundId);
+
+  if (error) throw error;
+
+  await addActivityLog(groupFundId, userId, 'close_fund', 'fund', groupFundId, 'Đã đóng quỹ nhóm');
+};
+
+/**
+ * 25. Dừng yêu cầu thu quỹ (Chuyển trạng thái sang completed)
+ */
+export const stopPaymentRequest = async (paymentRequestId, groupFundId, userId, requestTitle) => {
+  const { error } = await supabase
+    .from('payment_requests')
+    .update({ status: 'completed' })
+    .eq('id', paymentRequestId);
+
+  if (error) throw error;
+
+  await addActivityLog(
+    groupFundId,
+    userId,
+    'close_request',
+    'payment_request',
+    paymentRequestId,
+    `Dừng yêu cầu thu quỹ "${requestTitle}"`
+  );
 };
