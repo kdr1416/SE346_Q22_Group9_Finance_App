@@ -789,3 +789,171 @@ export const stopPaymentRequest = async (paymentRequestId, groupFundId, userId, 
     `Dừng yêu cầu thu quỹ "${requestTitle}"`
   );
 };
+
+/**
+ * 26. Lấy thống kê tổng quan quỹ: tổng thu, tổng chi, top thành viên đóng góp, phân bổ chi tiêu
+ */
+export const getGroupFundStats = async (groupFundId) => {
+  // A. Lấy danh sách payment requests thuộc quỹ này
+  const { data: requests, error: reqError } = await supabase
+    .from('payment_requests')
+    .select('id')
+    .eq('group_fund_id', groupFundId);
+
+  if (reqError) throw reqError;
+
+  const requestIds = (requests || []).map((r) => r.id);
+
+  let prms = [];
+  if (requestIds.length > 0) {
+    const { data: prmsData, error: prmError } = await supabase
+      .from('payment_request_members')
+      .select('amount_paid, group_fund_members(user_id, profiles(name))')
+      .in('payment_request_id', requestIds)
+      .eq('status', 'paid');
+
+    if (prmError) throw prmError;
+    prms = prmsData || [];
+  }
+
+  // B. Lấy danh sách các khoản chi tiêu đã duyệt
+  const { data: expenses, error: expError } = await supabase
+    .from('group_expenses')
+    .select('amount, category, title, created_at')
+    .eq('group_fund_id', groupFundId)
+    .eq('status', 'approved');
+
+  if (expError) throw expError;
+
+  const expensesList = expenses || [];
+
+  // C. Tính tổng thu và chi
+  const totalIncome = prms.reduce((sum, item) => sum + Number(item.amount_paid || 0), 0);
+  const totalExpense = expensesList.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+
+  // D. Thống kê top thành viên đóng góp
+  const contributorsMap = {};
+  prms.forEach((prm) => {
+    const userId = prm.group_fund_members?.user_id;
+    const name = prm.group_fund_members?.profiles?.name || 'Thành viên ẩn';
+    if (userId) {
+      if (!contributorsMap[userId]) {
+        contributorsMap[userId] = { id: userId, name, totalAmount: 0 };
+      }
+      contributorsMap[userId].totalAmount += Number(prm.amount_paid || 0);
+    }
+  });
+
+  const topContributors = Object.values(contributorsMap)
+    .sort((a, b) => b.totalAmount - a.totalAmount)
+    .slice(0, 5); // Lấy top 5 thành viên đóng góp nhiều nhất
+
+  // E. Phân bổ chi tiêu theo danh mục (Pie breakdown)
+  const categoryMap = {};
+  const defaultColors = [
+    '#2E7D32', // Xanh lá đậm
+    '#D32F2F', // Đỏ
+    '#1976D2', // Xanh dương
+    '#FBC02D', // Vàng
+    '#7B1FA2', // Tím
+    '#E65100', // Cam
+    '#0097A7', // Xanh ngọc
+  ];
+
+  expensesList.forEach((exp) => {
+    const cat = exp.category || 'Khác';
+    if (!categoryMap[cat]) {
+      categoryMap[cat] = 0;
+    }
+    categoryMap[cat] += Number(exp.amount || 0);
+  });
+
+  const expenseBreakdown = Object.keys(categoryMap).map((cat, index) => ({
+    category: cat,
+    spent: categoryMap[cat],
+    color: defaultColors[index % defaultColors.length],
+  })).sort((a, b) => b.spent - a.spent);
+
+  return {
+    totalIncome,
+    totalExpense,
+    topContributors,
+    expenseBreakdown,
+  };
+};
+
+/**
+ * 27. Lấy dữ liệu biểu đồ thu chi theo tháng (6 tháng gần nhất)
+ */
+export const getGroupFundChartData = async (groupFundId) => {
+  // Lấy danh sách payment requests để tính thu nhập theo tháng
+  const { data: requests, error: reqError } = await supabase
+    .from('payment_requests')
+    .select('id')
+    .eq('group_fund_id', groupFundId);
+
+  if (reqError) throw reqError;
+
+  const requestIds = (requests || []).map((r) => r.id);
+
+  let prms = [];
+  if (requestIds.length > 0) {
+    const { data: prmsData, error: prmError } = await supabase
+      .from('payment_request_members')
+      .select('amount_paid, confirmed_at')
+      .in('payment_request_id', requestIds)
+      .eq('status', 'paid');
+
+    if (prmError) throw prmError;
+    prms = prmsData || [];
+  }
+
+  // Lấy các khoản chi tiêu đã duyệt
+  const { data: expenses, error: expError } = await supabase
+    .from('group_expenses')
+    .select('amount, expense_date, created_at')
+    .eq('group_fund_id', groupFundId)
+    .eq('status', 'approved');
+
+  if (expError) throw expError;
+  const expensesList = expenses || [];
+
+  // Tạo nhãn 6 tháng gần nhất (định dạng Thg X)
+  const monthlyData = [];
+  const now = new Date();
+
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const monthName = `Thg ${d.getMonth() + 1}`;
+    monthlyData.push({
+      monthLabel: monthName,
+      monthKey: `${d.getFullYear()}-${d.getMonth() + 1}`,
+      income: 0,
+      expense: 0,
+    });
+  }
+
+  // Phân bổ thu nhập vào các tháng tương ứng
+  prms.forEach((prm) => {
+    const dateStr = prm.confirmed_at || new Date().toISOString();
+    const date = new Date(dateStr);
+    const key = `${date.getFullYear()}-${date.getMonth() + 1}`;
+    const foundMonth = monthlyData.find((m) => m.monthKey === key);
+    if (foundMonth) {
+      foundMonth.income += Number(prm.amount_paid || 0);
+    }
+  });
+
+  // Phân bổ chi tiêu vào các tháng tương ứng
+  expensesList.forEach((exp) => {
+    const dateStr = exp.expense_date || exp.created_at || new Date().toISOString();
+    const date = new Date(dateStr);
+    const key = `${date.getFullYear()}-${date.getMonth() + 1}`;
+    const foundMonth = monthlyData.find((m) => m.monthKey === key);
+    if (foundMonth) {
+      foundMonth.expense += Number(exp.amount || 0);
+    }
+  });
+
+  return monthlyData;
+};

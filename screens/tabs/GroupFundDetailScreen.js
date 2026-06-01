@@ -12,6 +12,7 @@ import {
   Platform,
   RefreshControl,
 } from 'react-native';
+import Svg, { Circle, G } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
@@ -36,6 +37,8 @@ export default function GroupFundDetailScreen({ route, navigation }) {
     paymentRequests,
     expenses,
     activityLogs,
+    stats,
+    chartData,
     loading,
     activeSection,
     setActiveSection,
@@ -57,6 +60,8 @@ export default function GroupFundDetailScreen({ route, navigation }) {
     handleStopPaymentRequest,
     loadRequestMembers,
   } = useGroupFundDetail(fund);
+
+  const [logSearchQuery, setLogSearchQuery] = useState('');
 
   const [showCreateRequest, setShowCreateRequest] = useState(false);
   const [showCreateExpense, setShowCreateExpense] = useState(false);
@@ -243,10 +248,16 @@ export default function GroupFundDetailScreen({ route, navigation }) {
   };
 
   const sections = [
+    { key: 'overview', label: 'Tổng quan', icon: 'pie-chart-outline' },
     { key: 'requests', label: 'Thu quỹ', icon: 'cash-outline' },
     { key: 'expenses', label: 'Chi quỹ', icon: 'cart-outline' },
     { key: 'logs', label: 'Lịch sử', icon: 'time-outline' },
   ];
+
+  const filteredLogs = (activityLogs || []).filter(log =>
+    log.description?.toLowerCase().includes(logSearchQuery.toLowerCase()) ||
+    log.actorName?.toLowerCase().includes(logSearchQuery.toLowerCase())
+  );
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
@@ -294,7 +305,12 @@ export default function GroupFundDetailScreen({ route, navigation }) {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.tabRow}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.tabScroll}
+          contentContainerStyle={styles.tabRow}
+        >
           {sections.map((section) => (
             <TouchableOpacity
               key={section.key}
@@ -305,7 +321,181 @@ export default function GroupFundDetailScreen({ route, navigation }) {
               <Text style={[styles.tabLabel, activeSection === section.key && styles.tabLabelActive]}>{section.label}</Text>
             </TouchableOpacity>
           ))}
-        </View>
+        </ScrollView>
+
+        {activeSection === 'overview' && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Tổng quan tài chính</Text>
+            
+            {/* Hàng tóm tắt số liệu */}
+            <View style={styles.summaryRow}>
+              <View style={styles.summaryCard}>
+                <View style={styles.summaryIconContainer}>
+                  <Ionicons name="trending-up" size={20} color="#2E7D32" />
+                </View>
+                <Text style={styles.summaryLabel}>Tổng thu</Text>
+                <Text style={[styles.summaryValue, { color: '#2E7D32' }]}>
+                  {formatVND(stats?.totalIncome || 0)}
+                </Text>
+              </View>
+
+              <View style={styles.summaryCard}>
+                <View style={[styles.summaryIconContainer, { backgroundColor: '#FFEBEE' }]}>
+                  <Ionicons name="trending-down" size={20} color="#C62828" />
+                </View>
+                <Text style={styles.summaryLabel}>Tổng chi</Text>
+                <Text style={[styles.summaryValue, { color: '#C62828' }]}>
+                  {formatVND(stats?.totalExpense || 0)}
+                </Text>
+              </View>
+            </View>
+
+            {/* Chi tiết cơ cấu chi tiêu (Donut Chart) */}
+            <View style={styles.card}>
+              <Text style={styles.cardHeaderTitle}>Cơ cấu chi tiêu</Text>
+              {stats?.expenseBreakdown?.length === 0 ? (
+                <View style={styles.emptyChartContainer}>
+                  <Ionicons name="pie-chart-outline" size={48} color={Colors.outline} />
+                  <Text style={styles.emptyChartText}>Chưa có khoản chi tiêu nào được duyệt</Text>
+                </View>
+              ) : (
+                <View style={styles.chartContentRow}>
+                  {/* SVG Donut Chart */}
+                  <View style={styles.donutWrapper}>
+                    <Svg width={140} height={140} viewBox="0 0 140 140">
+                      <G rotation="-90" origin="70, 70">
+                        {(() => {
+                          const totalSpent = stats?.expenseBreakdown.reduce((sum, item) => sum + item.spent, 0) || 1;
+                          const radius = 50;
+                          const strokeWidth = 12;
+                          const circumference = 2 * Math.PI * radius;
+                          let currentAngle = 0;
+
+                          return stats?.expenseBreakdown.map((item, index) => {
+                            const percentage = item.spent / totalSpent;
+                            const strokeLength = percentage * circumference;
+                            const strokeOffset = circumference - (strokeLength + currentAngle);
+                            currentAngle += strokeLength;
+
+                            return (
+                              <Circle
+                                key={index}
+                                cx={70}
+                                cy={70}
+                                r={radius}
+                                fill="transparent"
+                                stroke={item.color || '#cccccc'}
+                                strokeWidth={strokeWidth}
+                                strokeDasharray={`${strokeLength} ${circumference}`}
+                                strokeDashoffset={strokeOffset}
+                                strokeLinecap="round"
+                              />
+                            );
+                          });
+                        })()}
+                        {/* Lớp nền trong suốt tạo khuyết ở giữa */}
+                        <Circle cx={70} cy={70} r={43} fill={Colors.surfaceContainerLowest || '#ffffff'} />
+                      </G>
+                    </Svg>
+                    <View style={styles.donutTextContainer}>
+                      <Text style={styles.donutLabel}>Đã chi</Text>
+                      <Text style={styles.donutValue} numberOfLines={1} adjustsFontSizeToFit>
+                        {formatVND(stats?.totalExpense || 0).replace('₫', '')}
+                      </Text>
+                      <Text style={styles.donutUnit}>VND</Text>
+                    </View>
+                  </View>
+
+                  {/* Chú thích bên phải */}
+                  <View style={styles.legendContainer}>
+                    {stats?.expenseBreakdown.slice(0, 4).map((item, index) => {
+                      const totalSpent = stats?.expenseBreakdown.reduce((sum, item) => sum + item.spent, 0) || 1;
+                      const percentage = (item.spent / totalSpent) * 100;
+                      return (
+                        <View key={index} style={styles.legendItem}>
+                          <View style={[styles.colorDot, { backgroundColor: item.color }]} />
+                          <View style={styles.legendInfo}>
+                            <Text style={styles.legendLabel} numberOfLines={1}>{item.category}</Text>
+                            <Text style={styles.legendValue}>{percentage.toFixed(1)}%</Text>
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+            </View>
+
+            {/* Thống kê thu chi 6 tháng gần nhất */}
+            <View style={styles.card}>
+              <Text style={styles.cardHeaderTitle}>Thu chi 6 tháng gần nhất</Text>
+              {chartData?.length === 0 ? (
+                <View style={styles.emptyChartContainer}>
+                  <Ionicons name="bar-chart-outline" size={48} color={Colors.outline} />
+                  <Text style={styles.emptyChartText}>Chưa có dữ liệu giao dịch</Text>
+                </View>
+              ) : (
+                <View style={styles.barChartContainer}>
+                  <View style={styles.chartYAxis}>
+                    <Text style={styles.yAxisLabel}>{formatVND(Math.max(...chartData.map(d => Math.max(d.income, d.expense)), 100000) / 2).replace('₫', '')}</Text>
+                    <Text style={styles.yAxisLabel}>0</Text>
+                  </View>
+                  
+                  <View style={styles.barsContainer}>
+                    {chartData.map((d, index) => {
+                      const maxVal = Math.max(...chartData.map(item => Math.max(item.income, item.expense)), 100000);
+                      const incomeHeight = (d.income / maxVal) * 100;
+                      const expenseHeight = (d.expense / maxVal) * 100;
+
+                      return (
+                        <View key={index} style={styles.barColumn}>
+                          <View style={styles.barPairContainer}>
+                            <View style={styles.barWrapper}>
+                              <View style={[styles.trendBar, { height: `${incomeHeight}%`, backgroundColor: '#2E7D32' }]} />
+                            </View>
+                            <View style={styles.barWrapper}>
+                              <View style={[styles.trendBar, { height: `${expenseHeight}%`, backgroundColor: '#C62828' }]} />
+                            </View>
+                          </View>
+                          <Text style={styles.barLabel}>{d.monthLabel}</Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+              {/* Chú thích màu sắc biểu đồ cột */}
+              <View style={styles.barLegendRow}>
+                <View style={styles.barLegendItem}>
+                  <View style={[styles.legendDotMini, { backgroundColor: '#2E7D32' }]} />
+                  <Text style={styles.barLegendText}>Khoản thu</Text>
+                </View>
+                <View style={styles.barLegendItem}>
+                  <View style={[styles.legendDotMini, { backgroundColor: '#C62828' }]} />
+                  <Text style={styles.barLegendText}>Khoản chi</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Top đóng góp 🏆 */}
+            <View style={styles.card}>
+              <Text style={styles.cardHeaderTitle}>Thành viên đóng góp tích cực 🏆</Text>
+              {stats?.topContributors?.length === 0 ? (
+                <Text style={styles.emptyTextMini}>Chưa có đóng góp nào được ghi nhận.</Text>
+              ) : (
+                stats?.topContributors.map((c, idx) => (
+                  <View key={c.id} style={styles.contributorRow}>
+                    <View style={[styles.rankBadge, idx === 0 ? styles.rank1 : idx === 1 ? styles.rank2 : idx === 2 ? styles.rank3 : null]}>
+                      <Text style={styles.rankText}>{idx + 1}</Text>
+                    </View>
+                    <Text style={styles.contributorName}>{c.name}</Text>
+                    <Text style={styles.contributorAmount}>{formatVND(c.totalAmount)}</Text>
+                  </View>
+                ))
+              )}
+            </View>
+          </View>
+        )}
 
         {activeSection === 'requests' && (
           <View style={styles.section}>
@@ -316,7 +506,11 @@ export default function GroupFundDetailScreen({ route, navigation }) {
               )}
             </View>
             {paymentRequests.length === 0 ? (
-              <Text style={styles.emptyText}>Chưa có yêu cầu thu quỹ nào.</Text>
+              <View style={styles.emptyStateContainer}>
+                <Ionicons name="cash-outline" size={48} color={Colors.outline} />
+                <Text style={styles.emptyStateTitle}>Chưa có yêu cầu thu quỹ</Text>
+                <Text style={styles.emptyStateSubtitle}>Các yêu cầu thu đóng góp sẽ xuất hiện ở đây.</Text>
+              </View>
             ) : (
               paymentRequests.map((request) => (
                 <TouchableOpacity key={request.id} style={styles.card} onPress={() => openRequestDetail(request)}>
@@ -361,7 +555,11 @@ export default function GroupFundDetailScreen({ route, navigation }) {
               )}
             </View>
             {expenses.length === 0 ? (
-              <Text style={styles.emptyText}>Chưa có khoản chi nào.</Text>
+              <View style={styles.emptyStateContainer}>
+                <Ionicons name="cart-outline" size={48} color={Colors.outline} />
+                <Text style={styles.emptyStateTitle}>Chưa có khoản chi nào</Text>
+                <Text style={styles.emptyStateSubtitle}>Các đề xuất hoặc giao dịch chi sẽ hiển thị ở đây.</Text>
+              </View>
             ) : (
               expenses.map((expense) => (
                 <View key={expense.id} style={styles.card}>
@@ -401,10 +599,26 @@ export default function GroupFundDetailScreen({ route, navigation }) {
         {activeSection === 'logs' && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Lịch sử hoạt động</Text>
-            {activityLogs.length === 0 ? (
-              <Text style={styles.emptyText}>Chưa có hoạt động nào.</Text>
+            
+            {/* Ô tìm kiếm lịch sử hoạt động */}
+            <View style={styles.searchBarContainer}>
+              <Ionicons name="search" size={18} color={Colors.onSurfaceVariant} style={styles.searchIcon} />
+              <AppInput
+                placeholder="Tìm kiếm hoạt động..."
+                value={logSearchQuery}
+                onChangeText={setLogSearchQuery}
+                containerStyle={styles.searchContainerOverride}
+              />
+            </View>
+
+            {filteredLogs.length === 0 ? (
+              <View style={styles.emptyStateContainer}>
+                <Ionicons name="search-outline" size={48} color={Colors.outline} />
+                <Text style={styles.emptyStateTitle}>Không tìm thấy hoạt động</Text>
+                <Text style={styles.emptyStateSubtitle}>Thử tìm kiếm với từ khóa khác xem sao nhé.</Text>
+              </View>
             ) : (
-              activityLogs.map((log) => (
+              filteredLogs.map((log) => (
                 <View key={log.id} style={styles.logRow}>
                   <View style={styles.logIcon}>
                     <Ionicons name={getLogIcon(log.actionType)} size={18} color={Colors.primary} />
@@ -678,11 +892,68 @@ const styles = StyleSheet.create({
   balanceLabel: { fontFamily: Typography.fontBody_Regular, color: Colors.onPrimary },
   balanceValue: { fontFamily: Typography.fontHeadline_ExtraBold, fontSize: Typography.displayLg, color: Colors.onPrimary, marginBottom: Spacing.sm },
   balanceMeta: { fontFamily: Typography.fontBody_Regular, color: Colors.onPrimary, opacity: 0.9 },
-  tabRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.lg },
-  tabButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: Spacing.sm, borderRadius: Spacing.radiusLg, backgroundColor: Colors.surfaceContainerLowest, marginRight: Spacing.sm },
+  tabScroll: { marginBottom: Spacing.lg, maxHeight: 48 },
+  tabRow: { flexDirection: 'row', paddingRight: Spacing.lg },
+  tabButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md, borderRadius: Spacing.radiusLg, backgroundColor: Colors.surfaceContainerLowest, marginRight: Spacing.sm },
   tabButtonActive: { backgroundColor: Colors.primary },
   tabLabel: { marginLeft: Spacing.xs, fontFamily: Typography.fontBody_Medium, color: Colors.onSurfaceVariant },
   tabLabelActive: { color: Colors.surface },
+  
+  // Dashboard & Statistics Styles
+  summaryRow: { flexDirection: 'row', gap: 12, marginBottom: Spacing.lg },
+  summaryCard: { flex: 1, backgroundColor: Colors.surfaceContainerLowest, borderRadius: Spacing.radiusXl, padding: Spacing.lg, alignItems: 'center', elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4 },
+  summaryIconContainer: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#E8F5E9', alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.xs },
+  summaryLabel: { fontSize: 12, color: Colors.onSurfaceVariant, fontFamily: Typography.fontBody_Regular },
+  summaryValue: { fontSize: 16, fontFamily: Typography.fontHeadline_Bold, marginTop: Spacing.xs },
+  cardHeaderTitle: { fontFamily: Typography.fontHeadline_SemiBold, fontSize: Typography.bodyMd, color: Colors.onSurface, marginBottom: Spacing.lg },
+  emptyChartContainer: { alignItems: 'center', justifyContent: 'center', paddingVertical: Spacing.xl },
+  emptyChartText: { fontFamily: Typography.fontBody_Regular, fontSize: 12, color: Colors.onSurfaceVariant, marginTop: Spacing.sm },
+  chartContentRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  donutWrapper: { width: 140, height: 140, justifyContent: 'center', alignItems: 'center' },
+  donutTextContainer: { position: 'absolute', alignItems: 'center', justifyContent: 'center', width: 80, height: 80 },
+  donutLabel: { fontSize: 10, color: Colors.onSurfaceVariant, fontFamily: Typography.fontBody_Regular },
+  donutValue: { fontSize: 14, fontFamily: Typography.fontHeadline_Bold, color: Colors.onSurface, marginVertical: 2 },
+  donutUnit: { fontSize: 8, color: Colors.onSurfaceVariant, fontFamily: Typography.fontBody_Regular },
+  legendContainer: { flex: 1, marginLeft: Spacing.lg, gap: Spacing.sm },
+  legendItem: { flexDirection: 'row', alignItems: 'center' },
+  colorDot: { width: 8, height: 8, borderRadius: 4, marginRight: Spacing.xs },
+  legendInfo: { flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  legendLabel: { fontSize: 11, fontFamily: Typography.fontBody_Regular, color: Colors.onSurface, flex: 1, marginRight: Spacing.xs },
+  legendValue: { fontSize: 11, fontFamily: Typography.fontBody_Bold, color: Colors.onSurfaceVariant },
+  
+  // Bar Chart Styles
+  barChartContainer: { flexDirection: 'row', height: 160, alignItems: 'flex-end', paddingTop: Spacing.md },
+  chartYAxis: { justifyContent: 'space-between', height: '100%', paddingRight: Spacing.sm, borderRightWidth: 1, borderRightColor: Colors.surfaceContainerHigh, width: 60 },
+  yAxisLabel: { fontSize: 8, color: Colors.onSurfaceVariant, fontFamily: Typography.fontBody_Regular, textAlign: 'right' },
+  barsContainer: { flex: 1, flexDirection: 'row', justifyContent: 'space-around', height: '100%', alignItems: 'flex-end' },
+  barColumn: { alignItems: 'center', flex: 1, height: '100%', justifyContent: 'flex-end' },
+  barPairContainer: { flexDirection: 'row', gap: 4, alignItems: 'flex-end', height: '80%', width: '100%', justifyContent: 'center' },
+  barWrapper: { height: '100%', width: 8, justifyContent: 'flex-end' },
+  trendBar: { width: '100%', borderTopLeftRadius: 4, borderTopRightRadius: 4 },
+  barLabel: { fontSize: 9, color: Colors.onSurfaceVariant, fontFamily: Typography.fontBody_Regular, marginTop: Spacing.xs },
+  barLegendRow: { flexDirection: 'row', justifyContent: 'center', gap: Spacing.lg, marginTop: Spacing.md },
+  barLegendItem: { flexDirection: 'row', alignItems: 'center' },
+  legendDotMini: { width: 6, height: 6, borderRadius: 3, marginRight: Spacing.xs },
+  barLegendText: { fontSize: 10, color: Colors.onSurfaceVariant, fontFamily: Typography.fontBody_Regular },
+  
+  // Leaderboard Styles
+  emptyTextMini: { fontFamily: Typography.fontBody_Regular, fontSize: 12, color: Colors.onSurfaceVariant, textAlign: 'center' },
+  contributorRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.surfaceContainerHigh },
+  rankBadge: { width: 20, height: 20, borderRadius: 10, backgroundColor: Colors.surfaceContainerHigh, alignItems: 'center', justifyContent: 'center', marginRight: Spacing.md },
+  rank1: { backgroundColor: '#FBC02D' },
+  rank2: { backgroundColor: '#B0BEC5' },
+  rank3: { backgroundColor: '#FF8A65' },
+  rankText: { fontSize: 10, fontFamily: Typography.fontHeadline_Bold, color: '#fff' },
+  contributorName: { flex: 1, fontFamily: Typography.fontBody_Medium, fontSize: 13, color: Colors.onSurface },
+  contributorAmount: { fontFamily: Typography.fontHeadline_Bold, fontSize: 13, color: '#2E7D32' },
+  
+  // Search & Empty States Override Styles
+  searchBarContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surfaceContainerLowest, borderRadius: Spacing.radiusLg, paddingHorizontal: Spacing.md, marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.surfaceContainerHigh },
+  searchIcon: { marginRight: Spacing.xs },
+  searchContainerOverride: { flex: 1, borderBottomWidth: 0, paddingBottom: 0 },
+  emptyStateContainer: { alignItems: 'center', justifyContent: 'center', paddingVertical: Spacing.xl * 1.5, paddingHorizontal: Spacing.xl },
+  emptyStateTitle: { fontFamily: Typography.fontHeadline_SemiBold, fontSize: Typography.bodyLg, color: Colors.onSurface, marginTop: Spacing.md, marginBottom: Spacing.xs },
+  emptyStateSubtitle: { fontFamily: Typography.fontBody_Regular, fontSize: Typography.bodySm, color: Colors.onSurfaceVariant, textAlign: 'center' },
   section: { marginBottom: Spacing.xl },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.sm },
   sectionTitle: { fontFamily: Typography.fontHeadline_SemiBold, fontSize: Typography.headlineSm, color: Colors.onSurface },

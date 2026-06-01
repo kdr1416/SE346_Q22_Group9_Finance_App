@@ -21,6 +21,8 @@ import {
   leaveGroup,
   closeGroupFund,
   stopPaymentRequest,
+  getGroupFundStats,
+  getGroupFundChartData,
 } from '../../services/groupFundService';
 
 export default function useGroupFundDetail(fundParam) {
@@ -33,8 +35,10 @@ export default function useGroupFundDetail(fundParam) {
   const [paymentRequests, setPaymentRequests] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [activityLogs, setActivityLogs] = useState([]);
+  const [stats, setStats] = useState(null);
+  const [chartData, setChartData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeSection, setActiveSection] = useState('requests');
+  const [activeSection, setActiveSection] = useState('overview');
 
   const myRole = fundParam?.myRole;
   const isOwner = myRole === 'owner';
@@ -51,6 +55,8 @@ export default function useGroupFundDetail(fundParam) {
         fetchPaymentRequests(fundParam.id),
         fetchGroupExpenses(fundParam.id),
         fetchActivityLogs(fundParam.id),
+        getGroupFundStats(fundParam.id),
+        getGroupFundChartData(fundParam.id),
       ]);
 
       if (results[0].status === 'fulfilled') setFundDetail(results[0].value);
@@ -70,6 +76,12 @@ export default function useGroupFundDetail(fundParam) {
 
       if (results[5].status === 'fulfilled') setActivityLogs(results[5].value);
       else console.warn('Lỗi tải lịch sử:', results[5].reason?.message);
+
+      if (results[6].status === 'fulfilled') setStats(results[6].value);
+      else console.warn('Lỗi tải thống kê:', results[6].reason?.message);
+
+      if (results[7].status === 'fulfilled') setChartData(results[7].value);
+      else console.warn('Lỗi tải biểu đồ:', results[7].reason?.message);
 
     } catch (error) {
       console.error('Lỗi không xác định:', error?.message);
@@ -197,6 +209,8 @@ export default function useGroupFundDetail(fundParam) {
     paymentRequests,
     expenses,
     activityLogs,
+    stats,
+    chartData,
     loading,
     activeSection,
     setActiveSection,
