@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -40,14 +40,43 @@ export default function CommunityScreen({ navigation }) {
     handleSavePost,
   } = useCommunityFeed(navigation);
 
-  const renderItem = ({ item }) => (
+  const renderItem = useCallback(({ item }) => (
     <PostCard
       post={item}
       onPress={() => navigation.navigate('PostDetail', { postId: item.id })}
       onLike={() => handleLikePost(item.id)}
       onSave={() => handleSavePost(item.id)}
     />
-  );
+  ), [navigation, handleLikePost, handleSavePost]);
+
+  const listFooter = useMemo(() => {
+    if (!loadingMore) return null;
+    return (
+      <ActivityIndicator
+        size="small"
+        color={Colors.primary}
+        style={{ paddingVertical: Spacing.md }}
+      />
+    );
+  }, [loadingMore]);
+
+  const listEmpty = useMemo(() => (
+    <View style={styles.emptyContainer}>
+      <Ionicons
+        name={searchActive ? 'search-outline' : 'chatbubbles-outline'}
+        size={48}
+        color={Colors.outlineVariant}
+      />
+      <Text style={styles.emptyTitle}>
+        {searchActive ? 'Không tìm thấy kết quả' : 'Cộng đồng chưa có bài viết'}
+      </Text>
+      <Text style={styles.emptyDesc}>
+        {searchActive
+          ? 'Hãy thử tìm kiếm bằng từ khóa khác hoặc chủ đề khác.'
+          : 'Hãy là người đầu tiên chia sẻ kiến thức hữu ích hoặc hỏi đáp hôm nay!'}
+      </Text>
+    </View>
+  ), [searchActive]);
 
   const isAdmin = userRole === 'admin' || userRole === 'moderator';
 
@@ -85,6 +114,14 @@ export default function CommunityScreen({ navigation }) {
             activeOpacity={0.7}
           >
             <Ionicons name="notifications-outline" size={24} color={Colors.primary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.headerBtn}
+            onPress={() => navigation.navigate('CommunityProfile')}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="person-circle-outline" size={25} color={Colors.primary} />
           </TouchableOpacity>
         </View>
       </View>
@@ -165,32 +202,12 @@ export default function CommunityScreen({ navigation }) {
           onRefresh={handleRefresh}
           onEndReached={handleLoadMore}
           onEndReachedThreshold={0.4}
-          ListFooterComponent={() =>
-            loadingMore ? (
-              <ActivityIndicator
-                size="small"
-                color={Colors.primary}
-                style={{ paddingVertical: Spacing.md }}
-              />
-            ) : null
-          }
-          ListEmptyComponent={() => (
-            <View style={styles.emptyContainer}>
-              <Ionicons
-                name={searchActive ? 'search-outline' : 'chatbubbles-outline'}
-                size={48}
-                color={Colors.outlineVariant}
-              />
-              <Text style={styles.emptyTitle}>
-                {searchActive ? 'Không tìm thấy kết quả' : 'Cộng đồng chưa có bài viết'}
-              </Text>
-              <Text style={styles.emptyDesc}>
-                {searchActive
-                  ? 'Hãy thử tìm kiếm bằng từ khóa khác hoặc chủ đề khác.'
-                  : 'Hãy là người đầu tiên chia sẻ kiến thức hữu ích hoặc hỏi đáp hôm nay!'}
-              </Text>
-            </View>
-          )}
+          ListFooterComponent={listFooter}
+          ListEmptyComponent={listEmpty}
+          windowSize={5}
+          maxToRenderPerBatch={5}
+          initialNumToRender={7}
+          removeClippedSubviews={true}
         />
       )}
 

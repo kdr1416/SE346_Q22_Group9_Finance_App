@@ -1,4 +1,38 @@
 import { supabase } from '../lib/supabase';
+import { mapPostData, escapePostgrestFilter, NOTIFICATION_PREVIEW_LENGTH } from '../utils/communityHelpers';
+
+/**
+ * Helper: Giải mã chuỗi Base64 thành ArrayBuffer trong React Native
+ */
+const decodeBase64 = (base64) => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  const lookup = new Uint8Array(256);
+  for (let i = 0; i < chars.length; i++) {
+    lookup[chars.charCodeAt(i)] = i;
+  }
+  const cleanBase64 = base64.replace(/=/g, '');
+  const len = cleanBase64.length;
+  const bufferLength = Math.floor(len * 0.75);
+  const bytes = new Uint8Array(bufferLength);
+  
+  let p = 0;
+  for (let i = 0; i < len; i += 4) {
+    const chunk = 
+      (lookup[cleanBase64.charCodeAt(i)] << 18) |
+      (lookup[cleanBase64.charCodeAt(i + 1)] << 12) |
+      ((i + 2 < len ? lookup[cleanBase64.charCodeAt(i + 2)] : 0) << 6) |
+      (i + 3 < len ? lookup[cleanBase64.charCodeAt(i + 3)] : 0);
+      
+    bytes[p++] = (chunk >> 16) & 255;
+    if (i + 2 < len && p < bufferLength) {
+      bytes[p++] = (chunk >> 8) & 255;
+    }
+    if (i + 3 < len && p < bufferLength) {
+      bytes[p++] = chunk & 255;
+    }
+  }
+  return bytes.buffer;
+};
 
 /**
  * Helper: Upload ảnh lên Supabase Storage bucket 'community-images'
@@ -13,12 +47,40 @@ export const uploadImage = async (imageUri) => {
     const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
     const filePath = `posts/${fileName}`;
 
-    const response = await fetch(imageUri);
-    const blob = await response.blob();
+    // 1. Đọc tệp tin thành Blob bằng XMLHttpRequest
+    const blob = await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.onload = function () {
+        resolve(xhr.response);
+      };
+      xhr.onerror = function (e) {
+        reject(new TypeError("Lỗi đọc file cục bộ: XMLHttpRequest thất bại"));
+      };
+      xhr.responseType = 'blob';
+      xhr.open('GET', imageUri, true);
+      xhr.send(null);
+    });
 
+    // 2. Chuyển đổi Blob thành Base64 bằng FileReader (Để tránh lỗi Network request failed của fetch trong React Native)
+    const base64Data = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64 = reader.result.split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = () => {
+        reject(new Error("Lỗi đọc file thành Base64"));
+      };
+      reader.readAsDataURL(blob);
+    });
+
+    // 3. Giải mã Base64 thành ArrayBuffer
+    const arrayBuffer = decodeBase64(base64Data);
+
+    // 4. Tải ArrayBuffer lên Supabase Storage
     const { error: uploadError } = await supabase.storage
       .from('community-images')
-      .upload(filePath, blob, {
+      .upload(filePath, arrayBuffer, {
         contentType: `image/${ext}`,
       });
 
@@ -38,12 +100,14 @@ export const uploadImage = async (imageUri) => {
 /**
  * 1. Lấy danh sách các chủ đề đang hoạt động
  */
-export const getTopics = async () => {
-  const { data, error } = await supabase
-    .from('community_topics')
-    .select('*')
-    .eq('is_active', true)
-    .order('sort_order', { ascending: true });
+export const getTopics = async (showInactive = false) => {
+  let query = supabase.from('community_topics').select('*');
+
+  if (!showInactive) {
+    query = query.eq('is_active', true);
+  }
+
+  const { data, error } = await query.order('sort_order', { ascending: true });
 
   if (error) throw error;
 
@@ -53,13 +117,14 @@ export const getTopics = async () => {
     iconName: t.icon_name,
     color: t.color,
     sortOrder: t.sort_order,
+    isActive: t.is_active,
   }));
 };
 
 /**
  * 2. Lấy danh sách bài đăng có phân trang, lọc theo danh mục
  */
-export const getPosts = async ({ topicIds = [], page = 1, limit = 10, userId }) => {
+export const getPosts = async ({ topicIds = [], page = 1, limit = 10, userId, authorId }) => {
   const from = (page - 1) * limit;
   const to = from + limit - 1;
 
@@ -80,7 +145,7 @@ export const getPosts = async ({ topicIds = [], page = 1, limit = 10, userId }) 
       .from('community_posts')
       .select(`
         *,
-        profiles:author_id (id, name),
+        profiles!author_id (id, name),
         community_post_topics (
           topic:community_topics (id, name, icon_name, color)
         )
@@ -90,6 +155,10 @@ export const getPosts = async ({ topicIds = [], page = 1, limit = 10, userId }) 
 
     if (topicIds && topicIds.length > 0) {
       query = query.in('id', postIds);
+    }
+
+    if (authorId) {
+      query = query.eq('author_id', authorId);
     }
 
     const { data, error } = await query.range(from, to);
@@ -109,23 +178,7 @@ export const getPosts = async ({ topicIds = [], page = 1, limit = 10, userId }) 
       (saves || []).forEach((s) => savedPostIds.add(s.post_id));
     }
 
-    return data.map((p) => ({
-      id: p.id,
-      authorId: p.author_id,
-      authorName: p.profiles?.name || 'Ẩn danh',
-      title: p.title,
-      content: p.content,
-      postType: p.post_type,
-      imageUrl: p.image_url,
-      status: p.status,
-      likesCount: p.likes_count || 0,
-      commentsCount: p.comments_count || 0,
-      createdAt: p.created_at,
-      updatedAt: p.updated_at,
-      topics: (p.community_post_topics || []).map((pt) => pt.topic).filter(Boolean),
-      isLiked: likedPostIds.has(p.id),
-      isSaved: savedPostIds.has(p.id),
-    }));
+    return data.map((p) => mapPostData(p, likedPostIds, savedPostIds));
   } catch (error) {
     console.error('Lỗi lấy danh sách bài viết:', error.message);
     throw error;
@@ -138,19 +191,20 @@ export const getPosts = async ({ topicIds = [], page = 1, limit = 10, userId }) 
 export const searchPosts = async (queryStr, type = 'all', page = 1, limit = 10, userId) => {
   const from = (page - 1) * limit;
   const to = from + limit - 1;
+  const escapedQuery = escapePostgrestFilter(queryStr);
 
   try {
     let q = supabase
       .from('community_posts')
       .select(`
         *,
-        profiles:author_id (id, name),
+        profiles!author_id (id, name),
         community_post_topics (
           topic:community_topics (id, name, icon_name, color)
         )
       `)
       .eq('status', 'active')
-      .or(`title.ilike.%${queryStr}%,content.ilike.%${queryStr}%`)
+      .or(`title.ilike.%${escapedQuery}%,content.ilike.%${escapedQuery}%`)
       .order('created_at', { ascending: false });
 
     if (type === 'share' || type === 'question') {
@@ -174,23 +228,7 @@ export const searchPosts = async (queryStr, type = 'all', page = 1, limit = 10, 
       (saves || []).forEach((s) => savedPostIds.add(s.post_id));
     }
 
-    return data.map((p) => ({
-      id: p.id,
-      authorId: p.author_id,
-      authorName: p.profiles?.name || 'Ẩn danh',
-      title: p.title,
-      content: p.content,
-      postType: p.post_type,
-      imageUrl: p.image_url,
-      status: p.status,
-      likesCount: p.likes_count || 0,
-      commentsCount: p.comments_count || 0,
-      createdAt: p.created_at,
-      updatedAt: p.updated_at,
-      topics: (p.community_post_topics || []).map((pt) => pt.topic).filter(Boolean),
-      isLiked: likedPostIds.has(p.id),
-      isSaved: savedPostIds.has(p.id),
-    }));
+    return data.map((p) => mapPostData(p, likedPostIds, savedPostIds));
   } catch (error) {
     console.error('Lỗi tìm kiếm bài viết:', error.message);
     throw error;
@@ -205,7 +243,7 @@ export const getPostById = async (postId, userId) => {
     .from('community_posts')
     .select(`
       *,
-      profiles:author_id (id, name),
+      profiles!author_id (id, name),
       community_post_topics (
         topic:community_topics (id, name, icon_name, color)
       )
@@ -228,23 +266,7 @@ export const getPostById = async (postId, userId) => {
     isSaved = !!save;
   }
 
-  return {
-    id: data.id,
-    authorId: data.author_id,
-    authorName: data.profiles?.name || 'Ẩn danh',
-    title: data.title,
-    content: data.content,
-    postType: data.post_type,
-    imageUrl: data.image_url,
-    status: data.status,
-    likesCount: data.likes_count || 0,
-    commentsCount: data.comments_count || 0,
-    createdAt: data.created_at,
-    updatedAt: data.updated_at,
-    topics: (data.community_post_topics || []).map((pt) => pt.topic).filter(Boolean),
-    isLiked,
-    isSaved,
-  };
+  return mapPostData(data, isLiked, isSaved);
 };
 
 /**
@@ -297,7 +319,7 @@ export const updatePost = async (postId, { title, content, topicIds = [], imageU
     } else {
       imageUrl = null;
     }
-  } else if (imageUri && imageUri.startsWith('file://')) {
+  } else if (imageUri && !imageUri.startsWith('http')) {
     imageUrl = await uploadImage(imageUri);
   }
 
@@ -352,7 +374,7 @@ export const getComments = async (postId) => {
     .from('community_comments')
     .select(`
       *,
-      profiles:author_id (id, name)
+      profiles!author_id (id, name)
     `)
     .eq('post_id', postId)
     .eq('status', 'active')
@@ -412,7 +434,7 @@ export const createComment = async (postId, authorId, content) => {
           type: 'comment',
           target_type: 'post',
           target_id: postId,
-          content: `${commenterName} đã bình luận về bài đăng của bạn: "${post.title.substring(0, 30)}..."`,
+          content: `${commenterName} đã bình luận về bài đăng của bạn: "${(post?.title || '').substring(0, NOTIFICATION_PREVIEW_LENGTH)}..."`,
         });
     }
   } catch (err) {
@@ -504,7 +526,7 @@ export const toggleLike = async (postId, userId) => {
             type: 'like',
             target_type: 'post',
             target_id: postId,
-            content: `${likerName} đã thích bài viết của bạn: "${post.title.substring(0, 30)}..."`,
+            content: `${likerName} đã thích bài viết của bạn: "${(post?.title || '').substring(0, NOTIFICATION_PREVIEW_LENGTH)}..."`,
           });
       }
     } catch (err) {
@@ -559,7 +581,7 @@ export const getSavedPosts = async (userId) => {
     .select(`
       post:community_posts (
         *,
-        profiles:author_id (id, name),
+        profiles!author_id (id, name),
         community_post_topics (
           topic:community_topics (id, name, icon_name, color)
         )
@@ -570,26 +592,23 @@ export const getSavedPosts = async (userId) => {
 
   if (error) throw error;
 
-  return (data || [])
+  const posts = (data || [])
     .map((s) => s.post)
-    .filter((p) => p !== null && p.status === 'active')
-    .map((p) => ({
-      id: p.id,
-      authorId: p.author_id,
-      authorName: p.profiles?.name || 'Ẩn danh',
-      title: p.title,
-      content: p.content,
-      postType: p.post_type,
-      imageUrl: p.image_url,
-      status: p.status,
-      likesCount: p.likes_count || 0,
-      commentsCount: p.comments_count || 0,
-      createdAt: p.created_at,
-      updatedAt: p.updated_at,
-      topics: (p.community_post_topics || []).map((pt) => pt.topic).filter(Boolean),
-      isLiked: false,
-      isSaved: true,
-    }));
+    .filter((p) => p !== null && p.status === 'active');
+
+  let likedPostIds = new Set();
+  if (userId && posts.length > 0) {
+    const fetchedPostIds = posts.map((p) => p.id);
+    const { data: likes } = await supabase
+      .from('community_likes')
+      .select('post_id')
+      .eq('user_id', userId)
+      .in('post_id', fetchedPostIds);
+
+    (likes || []).forEach((l) => likedPostIds.add(l.post_id));
+  }
+
+  return posts.map((p) => mapPostData(p, likedPostIds, true));
 };
 
 /**
@@ -628,30 +647,59 @@ export const getReports = async (statusFilter = 'pending') => {
 
   if (error) throw error;
 
-  return await Promise.all((data || []).map(async (report) => {
+  const postIds = (data || []).filter(r => r.target_type === 'post').map(r => r.target_id);
+  const commentIds = (data || []).filter(r => r.target_type === 'comment').map(r => r.target_id);
+
+  let postsMap = {};
+  let commentsMap = {};
+
+  try {
+    if (postIds.length > 0) {
+      const { data: posts } = await supabase
+        .from('community_posts')
+        .select('id, title, author_id, profiles!author_id(name)')
+        .in('id', postIds);
+      (posts || []).forEach(p => {
+        postsMap[p.id] = {
+          title: p.title,
+          authorId: p.author_id,
+          authorName: p.profiles?.name || 'Ẩn danh'
+        };
+      });
+    }
+
+    if (commentIds.length > 0) {
+      const { data: comments } = await supabase
+        .from('community_comments')
+        .select('id, content, author_id, profiles!author_id(name)')
+        .in('id', commentIds);
+      (comments || []).forEach(c => {
+        commentsMap[c.id] = {
+          content: c.content,
+          authorId: c.author_id,
+          authorName: c.profiles?.name || 'Ẩn danh'
+        };
+      });
+    }
+  } catch (err) {
+    console.error('Lỗi lấy thông tin batch reports:', err.message);
+  }
+
+  return (data || []).map((report) => {
     let targetPreview = '';
     let targetAuthorName = '';
+    let targetAuthorId = '';
 
-    try {
-      if (report.target_type === 'post') {
-        const { data: post } = await supabase
-          .from('community_posts')
-          .select('title, profiles:author_id(name)')
-          .eq('id', report.target_id)
-          .single();
-        targetPreview = post?.title || 'Bài viết không tồn tại';
-        targetAuthorName = post?.profiles?.name || 'Ẩn danh';
-      } else {
-        const { data: comment } = await supabase
-          .from('community_comments')
-          .select('content, profiles:author_id(name)')
-          .eq('id', report.target_id)
-          .single();
-        targetPreview = comment?.content || 'Bình luận không tồn tại';
-        targetAuthorName = comment?.profiles?.name || 'Ẩn danh';
-      }
-    } catch (err) {
-      console.warn('Lỗi lấy nội dung bị báo cáo:', err.message);
+    if (report.target_type === 'post') {
+      const post = postsMap[report.target_id];
+      targetPreview = post?.title || 'Bài viết không tồn tại';
+      targetAuthorName = post?.authorName || 'Ẩn danh';
+      targetAuthorId = post?.authorId || '';
+    } else {
+      const comment = commentsMap[report.target_id];
+      targetPreview = comment?.content || 'Bình luận không tồn tại';
+      targetAuthorName = comment?.authorName || 'Ẩn danh';
+      targetAuthorId = comment?.authorId || '';
     }
 
     return {
@@ -669,8 +717,9 @@ export const getReports = async (statusFilter = 'pending') => {
       createdAt: report.created_at,
       targetPreview,
       targetAuthorName,
+      targetAuthorId,
     };
-  }));
+  });
 };
 
 /**

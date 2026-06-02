@@ -38,6 +38,30 @@ export default function useCommunityFeed(navigation) {
   // Ref quản lý hoãn kích hoạt tìm kiếm (Debounce)
   const searchTimeoutRef = useRef(null);
 
+  // Refs để tránh stale closures
+  const hasMoreRef = useRef(hasMore);
+  useEffect(() => {
+    hasMoreRef.current = hasMore;
+  }, [hasMore]);
+
+  const searchHasMoreRef = useRef(searchHasMore);
+  useEffect(() => {
+    searchHasMoreRef.current = searchHasMore;
+  }, [searchHasMore]);
+
+  // Refs bảo vệ chống click nhanh liên tục (Double-tap guard)
+  const likeInProgressRef = useRef(new Set());
+  const saveInProgressRef = useRef(new Set());
+
+  // Cleanup timeout khi unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // 1. Tải danh sách Chủ đề & Phân quyền của người dùng hiện tại
   const loadInitialData = useCallback(async () => {
     try {
@@ -57,10 +81,20 @@ export default function useCommunityFeed(navigation) {
     loadInitialData();
   }, [loadInitialData]);
 
+  // Tự động tải lại bảng tin khi quay lại màn hình (ví dụ sau khi đăng bài xong)
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      if (!searchActive) {
+        fetchFeed(1, true);
+      }
+    });
+    return unsubscribe;
+  }, [navigation, searchActive]);
+
   // 2. Tải danh sách bài đăng chính (Có phân trang)
   const fetchFeed = useCallback(
     async (pageNum, isRefresh = false) => {
-      if (!isRefresh && pageNum > 1 && !hasMore) return;
+      if (!isRefresh && pageNum > 1 && !hasMoreRef.current) return;
 
       if (isRefresh) {
         setRefreshing(true);
@@ -85,7 +119,6 @@ export default function useCommunityFeed(navigation) {
           setHasMore(fetchedPosts.length === 10);
         } else {
           setPosts((prev) => {
-            // Lọc bỏ bài trùng lặp bằng Set ID
             const existingIds = new Set(prev.map((p) => p.id));
             const newPosts = fetchedPosts.filter((p) => !existingIds.has(p.id));
             return [...prev, ...newPosts];
@@ -102,7 +135,7 @@ export default function useCommunityFeed(navigation) {
         setLoadingMore(false);
       }
     },
-    [selectedTopicId, userId, hasMore]
+    [selectedTopicId, userId]
   );
 
   // Tự động tải lại bảng tin khi thay đổi lọc chủ đề
@@ -195,11 +228,11 @@ export default function useCommunityFeed(navigation) {
     if (loading || refreshing || loadingMore) return;
 
     if (searchActive) {
-      if (searchHasMore) {
+      if (searchHasMoreRef.current) {
         fetchSearch(searchQuery, searchTab, searchPage + 1, false);
       }
     } else {
-      if (hasMore) {
+      if (hasMoreRef.current) {
         fetchFeed(page + 1, false);
       }
     }
@@ -230,6 +263,9 @@ export default function useCommunityFeed(navigation) {
       Alert.alert('Yêu cầu đăng nhập', 'Bạn cần đăng nhập để tương tác với bài viết.');
       return;
     }
+
+    if (likeInProgressRef.current.has(postId)) return;
+    likeInProgressRef.current.add(postId);
 
     const updateLocalList = (list) =>
       list.map((p) => {
@@ -275,6 +311,8 @@ export default function useCommunityFeed(navigation) {
         setPosts(revertLocalList);
       }
       Alert.alert('Thất bại', 'Không thể hoàn tất thao tác thích bài viết.');
+    } finally {
+      likeInProgressRef.current.delete(postId);
     }
   };
 
@@ -284,6 +322,9 @@ export default function useCommunityFeed(navigation) {
       Alert.alert('Yêu cầu đăng nhập', 'Bạn cần đăng nhập để tương tác với bài viết.');
       return;
     }
+
+    if (saveInProgressRef.current.has(postId)) return;
+    saveInProgressRef.current.add(postId);
 
     const updateLocalList = (list) =>
       list.map((p) => {
@@ -319,6 +360,8 @@ export default function useCommunityFeed(navigation) {
         setPosts(revertLocalList);
       }
       Alert.alert('Thất bại', 'Không thể hoàn tất thao tác lưu bài viết.');
+    } finally {
+      saveInProgressRef.current.delete(postId);
     }
   };
 

@@ -11,7 +11,7 @@ import { Spacing } from '../../constants/Spacing';
 import useBudgets from '../../hooks/tabs/useBudgets';
 import { formatVND } from '../../utils/currency';
 
-export default function BudgetsScreen() {
+export default function BudgetsScreen({ navigation }) {
   const { 
     budgets, 
     breakdown, 

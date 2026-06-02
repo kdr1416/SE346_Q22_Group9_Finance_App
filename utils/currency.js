@@ -8,6 +8,7 @@
  * Ví dụ: 4836000 → "4.836.000đ"
  */
 export const formatVND = (amount) => {
+  if (amount === undefined || amount === null) return '0đ';
   return amount.toLocaleString('vi-VN') + 'đ';
 };
 

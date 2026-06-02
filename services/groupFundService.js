@@ -141,50 +141,25 @@ export const fetchGroupMembers = async (groupFundId) => {
 /**
  * 5. [PHÂN QUYỀN] Cập nhật vai trò thành viên (Chỉ dành cho Owner)
  */
-export const updateMemberRoleInDB = async (memberId, newRole, groupFundId, actorId, memberName) => {
+export const updateMemberRoleInDB = async (memberId, newRole) => {
   const { error } = await supabase
     .from('group_fund_members')
     .update({ role: newRole })
     .eq('id', memberId);
 
   if (error) throw error;
-
-  // Ghi log hoạt động
-  if (groupFundId && actorId) {
-    const actionType = newRole === 'admin' ? 'promote_admin' : 'demote_member';
-    await addActivityLog(
-      groupFundId,
-      actorId,
-      actionType,
-      'member',
-      memberId,
-      `${newRole === 'admin' ? 'Cấp quyền Admin cho' : 'Hạ quyền'} ${memberName}`
-    );
-  }
 };
 
 /**
  * 6. [PHÂN QUYỀN] Xóa thành viên ra khỏi quỹ
  */
-export const removeMemberFromDB = async (memberId, groupFundId, actorId, memberName) => {
+export const removeMemberFromDB = async (memberId) => {
   const { error } = await supabase
     .from('group_fund_members')
     .update({ status: 'removed' })
     .eq('id', memberId);
 
   if (error) throw error;
-
-  // Ghi log hoạt động
-  if (groupFundId && actorId) {
-    await addActivityLog(
-      groupFundId,
-      actorId,
-      'remove_member',
-      'member',
-      memberId,
-      `Xóa ${memberName} khỏi quỹ nhóm`
-    );
-  }
 };
 
 // =====================================================
@@ -334,91 +309,58 @@ export const confirmPayment = async (
   confirmedByUserId,
   amountDue,
 ) => {
-  // 1. Tải toàn bộ dữ liệu cần thiết trong duy nhất 1 roundtrip đồng thời (Parallel SELECT)
-  const [reqRes, memberRes] = await Promise.all([
-    supabase
-      .from('payment_requests')
-      .select('title, total_collected_amount, group_funds(name, current_balance)')
-      .eq('id', paymentRequestId)
-      .single(),
-    supabase
-      .from('payment_request_members')
-      .select('status, group_fund_members(user_id, profiles(name))')
-      .eq('id', paymentRequestMemberId)
-      .single()
-  ]);
+  const { error: updateError } = await supabase
+    .from('payment_request_members')
+    .update({
+      status: 'paid',
+      amount_paid: amountDue,
+      confirmed_by: confirmedByUserId,
+      confirmed_at: new Date().toISOString(),
+    })
+    .eq('id', paymentRequestMemberId);
 
-  if (reqRes.error) throw reqRes.error;
-  if (memberRes.error) throw memberRes.error;
+  if (updateError) throw updateError;
 
-  // Nếu trạng thái đã là 'paid' (đã được xác nhận), kết thúc sớm để tránh tạo trùng lặp
-  if (memberRes.data?.status === 'paid') {
-    return;
-  }
+  const { data: currentReq, error: reqError } = await supabase
+    .from('payment_requests')
+    .select('total_collected_amount')
+    .eq('id', paymentRequestId)
+    .single();
 
-  const newCollected = Number(reqRes.data?.total_collected_amount || 0) + amountDue;
-  const newBalance = Number(reqRes.data?.group_funds?.current_balance || 0) + amountDue;
-  const targetUserId = memberRes.data?.group_fund_members?.user_id;
-  const payerName = memberRes.data?.group_fund_members?.profiles?.name || 'Thành viên';
-  const fundName = reqRes.data?.group_funds?.name || 'Quỹ nhóm';
-  const requestTitle = reqRes.data?.title || 'Nộp quỹ';
+  if (reqError) throw reqError;
 
-  // 2. Thực hiện toàn bộ câu lệnh ghi (UPDATE, INSERT) song song trong roundtrip thứ hai
-  const writePromises = [
-    supabase
-      .from('payment_request_members')
-      .update({
-        status: 'paid',
-        amount_paid: amountDue,
-        confirmed_by: confirmedByUserId,
-        confirmed_at: new Date().toISOString(),
-      })
-      .eq('id', paymentRequestMemberId),
+  const newCollected = Number(currentReq.total_collected_amount || 0) + amountDue;
+  const { error: updateReqError } = await supabase
+    .from('payment_requests')
+    .update({ total_collected_amount: newCollected })
+    .eq('id', paymentRequestId);
 
-    supabase
-      .from('payment_requests')
-      .update({ total_collected_amount: newCollected })
-      .eq('id', paymentRequestId),
+  if (updateReqError) throw updateReqError;
 
-    supabase
-      .from('group_funds')
-      .update({ current_balance: newBalance })
-      .eq('id', groupFundId),
+  const { data: currentFund, error: fundError } = await supabase
+    .from('group_funds')
+    .select('current_balance')
+    .eq('id', groupFundId)
+    .single();
 
-    supabase
-      .from('fund_activity_logs')
-      .insert({
-        group_fund_id: groupFundId,
-        actor_id: confirmedByUserId,
-        action_type: 'confirm_payment',
-        target_type: 'payment_request',
-        target_id: paymentRequestId,
-        description: `Xác nhận ${payerName} nộp quỹ ${amountDue.toLocaleString('vi-VN')}đ`,
-      })
-  ];
+  if (fundError) throw fundError;
 
-  if (targetUserId) {
-    writePromises.push(
-      supabase
-        .from('transactions')
-        .insert({
-          user_id: targetUserId,
-          title: `Nộp quỹ: ${fundName} (${requestTitle})`,
-          category: 'Khác',
-          amount: amountDue,
-          type: 'expense',
-          icon_name: 'people-outline',
-          date: new Date().toISOString(),
-        })
-    );
-  }
+  const newBalance = Number(currentFund.current_balance || 0) + amountDue;
+  const { error: updateFundError } = await supabase
+    .from('group_funds')
+    .update({ current_balance: newBalance })
+    .eq('id', groupFundId);
 
-  const writeResults = await Promise.all(writePromises);
+  if (updateFundError) throw updateFundError;
 
-  // Đảm bảo không có lỗi xảy ra ở bất kỳ tiến trình ghi nào
-  for (const res of writeResults) {
-    if (res.error) throw res.error;
-  }
+  await addActivityLog(
+    groupFundId,
+    confirmedByUserId,
+    'confirm_payment',
+    'payment_request',
+    paymentRequestId,
+    `Xác nhận nộp quỹ ${amountDue.toLocaleString('vi-VN')}đ`,
+  );
 };
 
 // =====================================================
@@ -508,62 +450,41 @@ export const fetchGroupExpenses = async (groupFundId) => {
 };
 
 export const approveExpense = async (expenseId, groupFundId, approvedByUserId, amount) => {
-  // 1. Tải thông tin trạng thái chi phí và số dư quỹ nhóm song song (Parallel SELECT)
-  const [expenseRes, fundRes] = await Promise.all([
-    supabase
-      .from('group_expenses')
-      .select('status')
-      .eq('id', expenseId)
-      .single(),
-    supabase
-      .from('group_funds')
-      .select('current_balance')
-      .eq('id', groupFundId)
-      .single()
-  ]);
+  const { error } = await supabase
+    .from('group_expenses')
+    .update({
+      status: 'approved',
+      approved_by: approvedByUserId,
+      approved_at: new Date().toISOString(),
+    })
+    .eq('id', expenseId);
 
-  if (expenseRes.error) throw expenseRes.error;
-  if (fundRes.error) throw fundRes.error;
+  if (error) throw error;
 
-  // Nếu trạng thái đã được duyệt từ trước, kết thúc sớm để tránh trừ trùng số dư
-  if (expenseRes.data?.status === 'approved') {
-    return;
-  }
+  const { data: currentFund, error: fundError } = await supabase
+    .from('group_funds')
+    .select('current_balance')
+    .eq('id', groupFundId)
+    .single();
 
-  const newBalance = Number(fundRes.data?.current_balance || 0) - amount;
+  if (fundError) throw fundError;
 
-  // 2. Thực hiện toàn bộ câu lệnh ghi (UPDATE, INSERT) song song trong roundtrip thứ hai
-  const writeResults = await Promise.all([
-    supabase
-      .from('group_expenses')
-      .update({
-        status: 'approved',
-        approved_by: approvedByUserId,
-        approved_at: new Date().toISOString(),
-      })
-      .eq('id', expenseId),
+  const newBalance = Number(currentFund.current_balance || 0) - amount;
+  const { error: updateFundError } = await supabase
+    .from('group_funds')
+    .update({ current_balance: newBalance })
+    .eq('id', groupFundId);
 
-    supabase
-      .from('group_funds')
-      .update({ current_balance: newBalance })
-      .eq('id', groupFundId),
+  if (updateFundError) throw updateFundError;
 
-    supabase
-      .from('fund_activity_logs')
-      .insert({
-        group_fund_id: groupFundId,
-        actor_id: approvedByUserId,
-        action_type: 'approve_expense',
-        target_type: 'expense',
-        target_id: expenseId,
-        description: `Duyệt khoản chi ${amount.toLocaleString('vi-VN')}đ`,
-      })
-  ]);
-
-  // Kiểm tra lỗi nếu có bất kỳ tác vụ ghi nào thất bại
-  for (const res of writeResults) {
-    if (res.error) throw res.error;
-  }
+  await addActivityLog(
+    groupFundId,
+    approvedByUserId,
+    'approve_expense',
+    'expense',
+    expenseId,
+    `Duyệt khoản chi ${amount.toLocaleString('vi-VN')}đ`,
+  );
 };
 
 export const rejectExpense = async (expenseId, groupFundId, rejectedByUserId) => {
@@ -708,252 +629,168 @@ export const rejectJoinRequest = async (memberId, groupFundId, rejectedByUserId,
 };
 
 /**
- * 22. Cập nhật thông tin quỹ nhóm (Tên, mô tả, số tiền mục tiêu)
- */
-export const updateGroupFundInfo = async (groupFundId, updates, userId) => {
-  const { error } = await supabase
-    .from('group_funds')
-    .update({
-      name: updates.name,
-      description: updates.description,
-      target_amount: updates.targetAmount || null,
-    })
-    .eq('id', groupFundId);
-
-  if (error) throw error;
-
-  await addActivityLog(groupFundId, userId, 'update_fund', 'fund', groupFundId, 'Cập nhật thông tin quỹ nhóm');
-};
-
-/**
- * 23. Rời khỏi quỹ nhóm
- */
-export const leaveGroup = async (groupFundId, userId) => {
-  // A. Kiểm tra chức vụ của thành viên
-  const { data: member, error: checkError } = await supabase
-    .from('group_fund_members')
-    .select('role')
-    .eq('group_fund_id', groupFundId)
-    .eq('user_id', userId)
-    .single();
-
-  if (checkError) throw checkError;
-
-  if (member?.role === 'owner') {
-    throw new Error('Chủ quỹ không thể rời nhóm. Vui lòng chuyển giao quyền Chủ quỹ trước.');
-  }
-
-  // B. Cập nhật trạng thái thành viên thành 'left'
-  const { error } = await supabase
-    .from('group_fund_members')
-    .update({ status: 'left' })
-    .eq('group_fund_id', groupFundId)
-    .eq('user_id', userId);
-
-  if (error) throw error;
-
-  await addActivityLog(groupFundId, userId, 'leave_group', 'member', null, 'Đã rời khỏi quỹ nhóm');
-};
-
-/**
- * 24. Đóng/kết thúc hoạt động của quỹ nhóm
- */
-export const closeGroupFund = async (groupFundId, userId) => {
-  const { error } = await supabase
-    .from('group_funds')
-    .update({ status: 'closed' })
-    .eq('id', groupFundId);
-
-  if (error) throw error;
-
-  await addActivityLog(groupFundId, userId, 'close_fund', 'fund', groupFundId, 'Đã đóng quỹ nhóm');
-};
-
-/**
- * 25. Dừng yêu cầu thu quỹ (Chuyển trạng thái sang completed)
- */
-export const stopPaymentRequest = async (paymentRequestId, groupFundId, userId, requestTitle) => {
-  const { error } = await supabase
-    .from('payment_requests')
-    .update({ status: 'completed' })
-    .eq('id', paymentRequestId);
-
-  if (error) throw error;
-
-  await addActivityLog(
-    groupFundId,
-    userId,
-    'close_request',
-    'payment_request',
-    paymentRequestId,
-    `Dừng yêu cầu thu quỹ "${requestTitle}"`
-  );
-};
-
-/**
- * 26. Lấy thống kê tổng quan quỹ: tổng thu, tổng chi, top thành viên đóng góp, phân bổ chi tiêu
+ * 22. Lấy thống kê thu chi, cơ cấu và đóng góp của quỹ nhóm (Sprint 6)
  */
 export const getGroupFundStats = async (groupFundId) => {
-  // A. Lấy danh sách payment requests thuộc quỹ này
-  const { data: requests, error: reqError } = await supabase
-    .from('payment_requests')
-    .select('id')
-    .eq('group_fund_id', groupFundId);
+  try {
+    // 1. Lấy tổng thu từ các payment_requests của quỹ
+    const { data: payments, error: payError } = await supabase
+      .from('payment_requests')
+      .select('total_collected_amount')
+      .eq('group_fund_id', groupFundId);
 
-  if (reqError) throw reqError;
+    if (payError) throw payError;
+    const totalIncome = (payments || []).reduce((sum, p) => sum + Number(p.total_collected_amount || 0), 0);
 
-  const requestIds = (requests || []).map((r) => r.id);
+    // 2. Lấy tổng chi từ các chi tiêu đã duyệt
+    const { data: approvedExpenses, error: expError } = await supabase
+      .from('group_expenses')
+      .select('amount, category')
+      .eq('group_fund_id', groupFundId)
+      .eq('status', 'approved');
 
-  let prms = [];
-  if (requestIds.length > 0) {
-    const { data: prmsData, error: prmError } = await supabase
+    if (expError) throw expError;
+    const totalExpense = (approvedExpenses || []).reduce((sum, e) => sum + Number(e.amount || 0), 0);
+
+    // 3. Tính toán cơ cấu chi tiêu (expenseBreakdown)
+    const breakdownMap = {};
+    (approvedExpenses || []).forEach((e) => {
+      const cat = e.category || 'Khác';
+      breakdownMap[cat] = (breakdownMap[cat] || 0) + Number(e.amount || 0);
+    });
+
+    const CATEGORY_COLORS = [
+      '#3B82F6', // Xanh dương
+      '#10B981', // Xanh lá
+      '#F59E0B', // Cam
+      '#EF4444', // Đỏ
+      '#8B5CF6', // Tím
+      '#EC4899', // Hồng
+    ];
+
+    const expenseBreakdown = Object.keys(breakdownMap).map((cat, idx) => ({
+      category: cat,
+      spent: breakdownMap[cat],
+      color: CATEGORY_COLORS[idx % CATEGORY_COLORS.length],
+    })).sort((a, b) => b.spent - a.spent);
+
+    // 4. Lấy danh sách Top Contributors (Dựa trên các khoản nộp đã duyệt)
+    const { data: paidContributions, error: contError } = await supabase
       .from('payment_request_members')
-      .select('amount_paid, group_fund_members(user_id, profiles(name))')
-      .in('payment_request_id', requestIds)
-      .eq('status', 'paid');
+      .select(`
+        amount_paid,
+        group_fund_members!inner (
+          group_fund_id,
+          profiles!inner (name)
+        )
+      `)
+      .eq('status', 'paid')
+      .eq('group_fund_members.group_fund_id', groupFundId);
 
-    if (prmError) throw prmError;
-    prms = prmsData || [];
+    if (contError) throw contError;
+
+    const contribMap = {};
+    (paidContributions || []).forEach((c) => {
+      const name = c.group_fund_members?.profiles?.name || 'Ẩn danh';
+      contribMap[name] = (contribMap[name] || 0) + Number(c.amount_paid || 0);
+    });
+
+    const topContributors = Object.keys(contribMap).map((name, index) => ({
+      id: index.toString(),
+      name,
+      totalAmount: contribMap[name],
+    })).sort((a, b) => b.totalAmount - a.totalAmount).slice(0, 5);
+
+    return {
+      totalIncome,
+      totalExpense,
+      expenseBreakdown,
+      topContributors,
+    };
+  } catch (error) {
+    console.error('Lỗi lấy thống kê quỹ nhóm:', error.message);
+    throw error;
   }
-
-  // B. Lấy danh sách các khoản chi tiêu đã duyệt
-  const { data: expenses, error: expError } = await supabase
-    .from('group_expenses')
-    .select('amount, category, title, created_at')
-    .eq('group_fund_id', groupFundId)
-    .eq('status', 'approved');
-
-  if (expError) throw expError;
-
-  const expensesList = expenses || [];
-
-  // C. Tính tổng thu và chi
-  const totalIncome = prms.reduce((sum, item) => sum + Number(item.amount_paid || 0), 0);
-  const totalExpense = expensesList.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-
-  // D. Thống kê top thành viên đóng góp
-  const contributorsMap = {};
-  prms.forEach((prm) => {
-    const userId = prm.group_fund_members?.user_id;
-    const name = prm.group_fund_members?.profiles?.name || 'Thành viên ẩn';
-    if (userId) {
-      if (!contributorsMap[userId]) {
-        contributorsMap[userId] = { id: userId, name, totalAmount: 0 };
-      }
-      contributorsMap[userId].totalAmount += Number(prm.amount_paid || 0);
-    }
-  });
-
-  const topContributors = Object.values(contributorsMap)
-    .sort((a, b) => b.totalAmount - a.totalAmount)
-    .slice(0, 5); // Lấy top 5 thành viên đóng góp nhiều nhất
-
-  // E. Phân bổ chi tiêu theo danh mục (Pie breakdown)
-  const categoryMap = {};
-  const defaultColors = [
-    '#2E7D32', // Xanh lá đậm
-    '#D32F2F', // Đỏ
-    '#1976D2', // Xanh dương
-    '#FBC02D', // Vàng
-    '#7B1FA2', // Tím
-    '#E65100', // Cam
-    '#0097A7', // Xanh ngọc
-  ];
-
-  expensesList.forEach((exp) => {
-    const cat = exp.category || 'Khác';
-    if (!categoryMap[cat]) {
-      categoryMap[cat] = 0;
-    }
-    categoryMap[cat] += Number(exp.amount || 0);
-  });
-
-  const expenseBreakdown = Object.keys(categoryMap).map((cat, index) => ({
-    category: cat,
-    spent: categoryMap[cat],
-    color: defaultColors[index % defaultColors.length],
-  })).sort((a, b) => b.spent - a.spent);
-
-  return {
-    totalIncome,
-    totalExpense,
-    topContributors,
-    expenseBreakdown,
-  };
 };
 
 /**
- * 27. Lấy dữ liệu biểu đồ thu chi theo tháng (6 tháng gần nhất)
+ * 23. Lấy dữ liệu biểu đồ thu chi 6 tháng gần nhất (Sprint 6)
  */
 export const getGroupFundChartData = async (groupFundId) => {
-  // Lấy danh sách payment requests để tính thu nhập theo tháng
-  const { data: requests, error: reqError } = await supabase
-    .from('payment_requests')
-    .select('id')
-    .eq('group_fund_id', groupFundId);
+  try {
+    const chartData = [];
+    const now = new Date();
+    
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const label = `T.${d.getMonth() + 1}`;
+      chartData.push({
+        label,
+        year: d.getFullYear(),
+        month: d.getMonth(),
+        income: 0,
+        expense: 0,
+      });
+    }
 
-  if (reqError) throw reqError;
-
-  const requestIds = (requests || []).map((r) => r.id);
-
-  let prms = [];
-  if (requestIds.length > 0) {
-    const { data: prmsData, error: prmError } = await supabase
+    // 1. Tính toán thu nhập theo tháng
+    const { data: paidContributions, error: contError } = await supabase
       .from('payment_request_members')
-      .select('amount_paid, confirmed_at')
-      .in('payment_request_id', requestIds)
-      .eq('status', 'paid');
+      .select(`
+        amount_paid,
+        confirmed_at,
+        group_fund_members!inner (
+          group_fund_id
+        )
+      `)
+      .eq('status', 'paid')
+      .eq('group_fund_members.group_fund_id', groupFundId)
+      .not('confirmed_at', 'is', null);
 
-    if (prmError) throw prmError;
-    prms = prmsData || [];
-  }
+    if (contError) throw contError;
 
-  // Lấy các khoản chi tiêu đã duyệt
-  const { data: expenses, error: expError } = await supabase
-    .from('group_expenses')
-    .select('amount, expense_date, created_at')
-    .eq('group_fund_id', groupFundId)
-    .eq('status', 'approved');
-
-  if (expError) throw expError;
-  const expensesList = expenses || [];
-
-  // Tạo nhãn 6 tháng gần nhất (định dạng Thg X)
-  const monthlyData = [];
-  const now = new Date();
-
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const monthName = `Thg ${d.getMonth() + 1}`;
-    monthlyData.push({
-      monthLabel: monthName,
-      monthKey: `${d.getFullYear()}-${d.getMonth() + 1}`,
-      income: 0,
-      expense: 0,
+    (paidContributions || []).forEach((c) => {
+      const dateStr = c.confirmed_at;
+      if (!dateStr) return;
+      const date = new Date(dateStr);
+      const month = date.getMonth();
+      const year = date.getFullYear();
+      
+      const targetMonth = chartData.find(m => m.month === month && m.year === year);
+      if (targetMonth) {
+        targetMonth.income += Number(c.amount_paid || 0);
+      }
     });
+
+    // 2. Tính toán chi tiêu theo tháng (Bỏ lọc strict not-null và fallback sang created_at)
+    const { data: approvedExpenses, error: expError } = await supabase
+      .from('group_expenses')
+      .select('amount, expense_date, created_at')
+      .eq('group_fund_id', groupFundId)
+      .eq('status', 'approved');
+
+    if (expError) throw expError;
+
+    (approvedExpenses || []).forEach((e) => {
+      const dateStr = e.expense_date || e.created_at;
+      if (!dateStr) return;
+      const date = new Date(dateStr);
+      const month = date.getMonth();
+      const year = date.getFullYear();
+      
+      const targetMonth = chartData.find(m => m.month === month && m.year === year);
+      if (targetMonth) {
+        targetMonth.expense += Number(e.amount || 0);
+      }
+    });
+
+    return chartData.map(d => ({
+      monthLabel: d.label, // Đồng bộ key monthLabel khớp với UI
+      income: d.income,
+      expense: d.expense,
+    }));
+  } catch (error) {
+    console.error('Lỗi lấy dữ liệu biểu đồ quỹ:', error.message);
+    throw error;
   }
-
-  // Phân bổ thu nhập vào các tháng tương ứng
-  prms.forEach((prm) => {
-    const dateStr = prm.confirmed_at || new Date().toISOString();
-    const date = new Date(dateStr);
-    const key = `${date.getFullYear()}-${date.getMonth() + 1}`;
-    const foundMonth = monthlyData.find((m) => m.monthKey === key);
-    if (foundMonth) {
-      foundMonth.income += Number(prm.amount_paid || 0);
-    }
-  });
-
-  // Phân bổ chi tiêu vào các tháng tương ứng
-  expensesList.forEach((exp) => {
-    const dateStr = exp.expense_date || exp.created_at || new Date().toISOString();
-    const date = new Date(dateStr);
-    const key = `${date.getFullYear()}-${date.getMonth() + 1}`;
-    const foundMonth = monthlyData.find((m) => m.monthKey === key);
-    if (foundMonth) {
-      foundMonth.expense += Number(exp.amount || 0);
-    }
-  });
-
-  return monthlyData;
 };
