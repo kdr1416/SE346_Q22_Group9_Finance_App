@@ -36,6 +36,15 @@ import BillsScreen from './screens/tabs/BillsScreen';
 import GroupFundsScreen from './screens/tabs/GroupFundsScreen';
 import GroupFundDetailScreen from './screens/tabs/GroupFundDetailScreen';
 
+// Community Screens (NEW)
+import CommunityScreen from './screens/tabs/CommunityScreen';
+import PostDetailScreen from './screens/tabs/PostDetailScreen';
+import CreatePostScreen from './screens/tabs/CreatePostScreen';
+import SavedPostsScreen from './screens/tabs/SavedPostsScreen';
+import CommunityProfileScreen from './screens/tabs/CommunityProfileScreen';
+import CommunityNotificationsScreen from './screens/tabs/CommunityNotificationsScreen';
+import CommunityAdminScreen from './screens/tabs/CommunityAdminScreen';
+
 // Design Tokens & Auth
 import { Colors } from './constants/Colors';
 import { Typography } from './constants/Typography';
@@ -83,9 +92,9 @@ function MainTabs() {
         options={{ title: 'Giao dịch', tabBarIcon: ({ color, size }) => <Ionicons name="swap-vertical-outline" size={size} color={color} /> }}
       />
       <Tab.Screen
-        name="Budgets"
-        component={BudgetsScreen}
-        options={{ title: 'Ngân sách', tabBarIcon: ({ color, size }) => <Ionicons name="pie-chart-outline" size={size} color={color} /> }}
+        name="Community"
+        component={CommunityScreen}
+        options={{ title: 'Cộng đồng', tabBarIcon: ({ color, size }) => <Ionicons name="people-outline" size={size} color={color} /> }}
       />
       <Tab.Screen
         name="Funds"
@@ -123,7 +132,6 @@ function RootNavigator() {
     );
   }
 
-  // Tự động rẽ nhánh tùy theo session đăng nhập
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -134,6 +142,15 @@ function RootNavigator() {
             <Stack.Screen name="MainTabs" component={MainTabs} />
             <Stack.Screen name="GroupFundDetail" component={GroupFundDetailScreen} options={{ presentation: 'card' }} />
             <Stack.Screen name="Bills" component={BillsScreen} options={{ presentation: 'card' }} />
+            
+            {/* Budgets & Community Screens (NEW STACK SCREENS) */}
+            <Stack.Screen name="Budgets" component={BudgetsScreen} options={{ presentation: 'card' }} />
+            <Stack.Screen name="PostDetail" component={PostDetailScreen} options={{ presentation: 'card' }} />
+            <Stack.Screen name="CreatePost" component={CreatePostScreen} options={{ presentation: 'card' }} />
+            <Stack.Screen name="SavedPosts" component={SavedPostsScreen} options={{ presentation: 'card' }} />
+            <Stack.Screen name="CommunityProfile" component={CommunityProfileScreen} options={{ presentation: 'card' }} />
+            <Stack.Screen name="CommunityNotifications" component={CommunityNotificationsScreen} options={{ presentation: 'card' }} />
+            <Stack.Screen name="CommunityAdmin" component={CommunityAdminScreen} options={{ presentation: 'card' }} />
           </>
         )}
       </Stack.Navigator>
