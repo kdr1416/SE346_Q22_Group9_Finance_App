@@ -60,12 +60,10 @@ export default function usePots() {
 
     if (potData.id) {
       setPots(prev => prev.map(p => p.id === potData.id ? { ...p, ...potData } : p));
-      const { error } = await supabase.from('pots').update(dbPayload).match({ id: potData.id });
+      const { error } = await supabase.from('pots').update(dbPayload).eq('id', potData.id);
       if (error) Alert.alert('Lỗi cập nhật lọ', error.message);
     } else {
-      const tempId = Math.random().toString();
-      setPots(prev => [...prev, { id: tempId, ...potData, savedAmount: 0 }]);
-
+      // Tạo lọ mới: insert trước, chỉ thêm vào UI khi có ID thật từ DB
       const { data, error } = await supabase
         .from('pots')
         .insert({ ...dbPayload, saved_amount: 0 })
@@ -74,9 +72,19 @@ export default function usePots() {
 
       if (error) {
         Alert.alert('Lỗi tạo lọ', error.message);
-        setPots(prev => prev.filter(p => p.id !== tempId));
-      } else if (data) {
-        setPots(prev => prev.map(p => p.id === tempId ? { ...p, id: data.id } : p));
+        return;
+      }
+
+      if (data) {
+        setPots(prev => [...prev, mapDbToLocal(data)]);
+      } else {
+        // Fallback: nếu .select() không trả về data (VD: RLS chặn), refetch lại
+        const { data: allPots } = await supabase
+          .from('pots')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: true });
+        if (allPots) setPots(allPots.map(mapDbToLocal));
       }
     }
   }, [user]);
@@ -89,7 +97,7 @@ export default function usePots() {
    * @param {function} onTransactionCreated - callback từ useTransactions.addTransactionLocally
    */
   const depositToPot = useCallback(async (pot, amount, onTransactionCreated) => {
-    if (!user || amount <= 0) return;
+    if (!user || amount <= 0 || !pot?.id) return;
 
     const newSaved = pot.savedAmount + amount;
 
@@ -100,7 +108,7 @@ export default function usePots() {
     const { error: potError } = await supabase
       .from('pots')
       .update({ saved_amount: newSaved })
-      .match({ id: pot.id });
+      .eq('id', pot.id);
 
     if (potError) {
       Alert.alert('Lỗi nạp tiền', potError.message);
@@ -148,7 +156,7 @@ export default function usePots() {
    * @returns {boolean} - true nếu thành công
    */
   const withdrawFromPot = useCallback(async (pot, amount, onTransactionCreated) => {
-    if (!user || amount <= 0) return false;
+    if (!user || amount <= 0 || !pot?.id) return false;
 
     if (amount > pot.savedAmount) {
       Alert.alert(
@@ -167,7 +175,7 @@ export default function usePots() {
     const { error: potError } = await supabase
       .from('pots')
       .update({ saved_amount: newSaved })
-      .match({ id: pot.id });
+      .eq('id', pot.id);
 
     if (potError) {
       Alert.alert('Lỗi rút tiền', potError.message);
@@ -214,7 +222,7 @@ export default function usePots() {
    * @param {function} onTransactionCreated - callback sync balance
    */
   const completePot = useCallback(async (pot, onTransactionCreated) => {
-    if (!user) return;
+    if (!user || !pot?.id) return;
 
     // Optimistic UI
     setPots(prev => prev.map(p => p.id === pot.id ? { ...p, isCompleted: true } : p));
@@ -223,7 +231,7 @@ export default function usePots() {
     const { error: potError } = await supabase
       .from('pots')
       .update({ is_completed: true })
-      .match({ id: pot.id });
+      .eq('id', pot.id);
 
     if (potError) {
       Alert.alert('Lỗi kết thúc lọ', potError.message);
@@ -265,8 +273,9 @@ export default function usePots() {
 
   // Xóa lọ
   const deletePot = useCallback(async (id) => {
+    if (!id) return;
     setPots(prev => prev.filter(p => p.id !== id));
-    const { error } = await supabase.from('pots').delete().match({ id });
+    const { error } = await supabase.from('pots').delete().eq('id', id);
     if (error) Alert.alert('Lỗi xóa lọ', error.message);
   }, []);
 

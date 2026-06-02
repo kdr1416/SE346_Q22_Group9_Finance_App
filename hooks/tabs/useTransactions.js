@@ -19,6 +19,7 @@ export default function useTransactions() {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('Tất cả');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     if (!user || !isFocused) return;
@@ -142,10 +143,17 @@ export default function useTransactions() {
   }, [transactions]);
 
   const filtered = useMemo(() => {
-    if (activeCategory === 'Tất cả') return transactions;
-    if (activeCategory === 'Thu nhập') return transactions.filter(t => t.type === 'income');
-    return transactions.filter(t => t.category === activeCategory);
-  }, [transactions, activeCategory]);
+    let result = transactions;
+    if (activeCategory === 'Thu nhập') {
+      result = result.filter(t => t.type === 'income');
+    } else if (activeCategory !== 'Tất cả') {
+      result = result.filter(t => t.category === activeCategory);
+    }
+    if (searchQuery.trim().length > 0) {
+      result = result.filter(t => t.title.toLowerCase().includes(searchQuery.toLowerCase().trim()));
+    }
+    return result;
+  }, [transactions, activeCategory, searchQuery]);
 
   return {
     loading,
@@ -158,5 +166,7 @@ export default function useTransactions() {
     deleteTransaction,
     addTransactionLocally,
     removeTransactionLocally,
+    searchQuery,
+    setSearchQuery,
   };
 }

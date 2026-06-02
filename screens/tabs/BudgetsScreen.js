@@ -56,8 +56,17 @@ export default function BudgetsScreen() {
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <ScrollView showsVerticalScrollIndicator={false}>
+        {/* Header cập nhật bổ sung nút back nếu có thể quay lại */}
         <View style={styles.header}>
-          <Text style={styles.title}>Ngân sách</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
+            {navigation && navigation.canGoBack() && (
+              <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginRight: Spacing.xs }}>
+                <Ionicons name="arrow-back" size={24} color={Colors.onSurface} />
+              </TouchableOpacity>
+            )}
+            <Text style={styles.title}>Ngân sách</Text>
+          </View>
+          
           <View style={styles.monthSelector}>
             <TouchableOpacity onPress={prevMonth} disabled={!canGoPrev} style={styles.monthBtn}>
               <Ionicons name="chevron-back" size={24} color={canGoPrev ? Colors.primary : Colors.outline} />

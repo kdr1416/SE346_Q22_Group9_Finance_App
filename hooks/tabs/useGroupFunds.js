@@ -46,7 +46,7 @@ export default function useGroupFunds() {
     if (!user) return;
     try {
       const fund = await joinGroupFundByCode(user.id, inviteCode);
-      Alert.alert('Chào mừng 🤝', `Bạn đã tham gia thành công quỹ "${fund.name}"!`);
+      Alert.alert('Đã gửi yêu cầu 📩', `Yêu cầu tham gia quỹ "${fund.name}" đã được gửi.\nVui lòng chờ chủ quỹ duyệt.`);
       await loadGroupFunds();
     } catch (error) {
       Alert.alert('Lỗi tham gia', error?.message || 'Không thể tham gia quỹ.');

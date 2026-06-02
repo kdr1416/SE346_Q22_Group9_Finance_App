@@ -30,11 +30,20 @@ import RegisterScreen from './screens/auth/RegisterScreen';
 import OverviewScreen from './screens/tabs/OverviewScreen';
 import TransactionsScreen from './screens/tabs/TransactionsScreen';
 import BudgetsScreen from './screens/tabs/BudgetsScreen';
-import PotsScreen from './screens/tabs/PotsScreen';
+import FundsScreen from './screens/tabs/FundsScreen';
 import ProfileScreen from './screens/tabs/ProfileScreen';
 import BillsScreen from './screens/tabs/BillsScreen';
 import GroupFundsScreen from './screens/tabs/GroupFundsScreen';
 import GroupFundDetailScreen from './screens/tabs/GroupFundDetailScreen';
+
+// Community Screens (NEW)
+import CommunityScreen from './screens/tabs/CommunityScreen';
+import PostDetailScreen from './screens/tabs/PostDetailScreen';
+import CreatePostScreen from './screens/tabs/CreatePostScreen';
+import SavedPostsScreen from './screens/tabs/SavedPostsScreen';
+import CommunityProfileScreen from './screens/tabs/CommunityProfileScreen';
+import CommunityNotificationsScreen from './screens/tabs/CommunityNotificationsScreen';
+import CommunityAdminScreen from './screens/tabs/CommunityAdminScreen';
 
 // Design Tokens & Auth
 import { Colors } from './constants/Colors';
@@ -83,19 +92,14 @@ function MainTabs() {
         options={{ title: 'Giao dịch', tabBarIcon: ({ color, size }) => <Ionicons name="swap-vertical-outline" size={size} color={color} /> }}
       />
       <Tab.Screen
-        name="Budgets"
-        component={BudgetsScreen}
-        options={{ title: 'Ngân sách', tabBarIcon: ({ color, size }) => <Ionicons name="pie-chart-outline" size={size} color={color} /> }}
+        name="Community"
+        component={CommunityScreen}
+        options={{ title: 'Cộng đồng', tabBarIcon: ({ color, size }) => <Ionicons name="people-outline" size={size} color={color} /> }}
       />
       <Tab.Screen
-        name="GroupFunds"
-        component={GroupFundsScreen}
-        options={{ title: 'Quỹ nhóm', tabBarIcon: ({ color, size }) => <Ionicons name="people-outline" size={size} color={color} /> }}
-      />
-      <Tab.Screen
-        name="Pots"
-        component={PotsScreen}
-        options={{ title: 'Tiết kiệm', tabBarIcon: ({ color, size }) => <Ionicons name="wallet-outline" size={size} color={color} /> }}
+        name="Funds"
+        component={FundsScreen}
+        options={{ title: 'Quỹ', tabBarIcon: ({ color, size }) => <Ionicons name="wallet-outline" size={size} color={color} /> }}
       />
       <Tab.Screen
         name="Profile"
@@ -128,7 +132,6 @@ function RootNavigator() {
     );
   }
 
-  // Tự động rẽ nhánh tùy theo session đăng nhập
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -139,6 +142,15 @@ function RootNavigator() {
             <Stack.Screen name="MainTabs" component={MainTabs} />
             <Stack.Screen name="GroupFundDetail" component={GroupFundDetailScreen} options={{ presentation: 'card' }} />
             <Stack.Screen name="Bills" component={BillsScreen} options={{ presentation: 'card' }} />
+            
+            {/* Budgets & Community Screens (NEW STACK SCREENS) */}
+            <Stack.Screen name="Budgets" component={BudgetsScreen} options={{ presentation: 'card' }} />
+            <Stack.Screen name="PostDetail" component={PostDetailScreen} options={{ presentation: 'card' }} />
+            <Stack.Screen name="CreatePost" component={CreatePostScreen} options={{ presentation: 'card' }} />
+            <Stack.Screen name="SavedPosts" component={SavedPostsScreen} options={{ presentation: 'card' }} />
+            <Stack.Screen name="CommunityProfile" component={CommunityProfileScreen} options={{ presentation: 'card' }} />
+            <Stack.Screen name="CommunityNotifications" component={CommunityNotificationsScreen} options={{ presentation: 'card' }} />
+            <Stack.Screen name="CommunityAdmin" component={CommunityAdminScreen} options={{ presentation: 'card' }} />
           </>
         )}
       </Stack.Navigator>
@@ -152,6 +164,7 @@ export default function App() {
     Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold,
     Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold,
   });
+  console.log('Fonts loaded:', fontsLoaded, 'Font error:', fontError);
 
   const onLayoutRootView = useCallback(async () => {
     if (fontsLoaded || fontError) {

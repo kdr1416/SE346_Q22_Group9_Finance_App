@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import Svg, { Circle } from 'react-native-svg';
+import Svg, { Circle, G } from 'react-native-svg';
 import { formatVND } from '../../utils/currency';
 import { Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
@@ -28,7 +28,7 @@ export default function SpendingPieChart({ breakdown = [] }) {
         {/* Biểu đồ Donut vẽ bằng SVG nguyên bản */}
         <View style={styles.chartWrapper}>
           <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-            <View style={{ transform: [{ rotate: '-90deg' }], originX: size / 2, originY: size / 2 }}>
+            <G rotation="-90" origin={`${size / 2}, ${size / 2}`}>
               {breakdown.map((item, index) => {
                 const percentage = item.spent / totalSpent;
                 const strokeLength = percentage * circumference;
@@ -59,7 +59,7 @@ export default function SpendingPieChart({ breakdown = [] }) {
                 r={radius - strokeWidth / 2 - 1}
                 fill="#ffffff"
               />
-            </View>
+            </G>
           </Svg>
           
           {/* Label hiển thị tổng số tiền chi tiêu ở tâm Donut */}
