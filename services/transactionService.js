@@ -42,13 +42,15 @@ export const createTransaction = async (userId, payload) => {
 /**
  * Xóa một giao dịch trong DB (chỉ dùng cho giao dịch KHÔNG bị khóa).
  * @param {string} id
+ * @param {string} userId - ID của user hiện tại, đảm bảo chỉ xóa transaction của mình
  * @returns {{ error: object|null }}
  */
-export const removeTransaction = async (id) => {
+export const removeTransaction = async (id, userId) => {
   const { error } = await supabase
     .from('transactions')
     .delete()
-    .eq('id', id);
+    .eq('id', id)
+    .eq('user_id', userId);
 
   return { error };
 };

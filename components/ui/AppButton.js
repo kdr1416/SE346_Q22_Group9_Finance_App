@@ -9,19 +9,22 @@ export default function AppButton({
   onPress, 
   variant = 'primary', 
   loading = false, 
+  disabled = false,
   style 
 }) {
   const isPrimary = variant === 'primary';
+  const isDisabled = loading || disabled;
 
   return (
     <TouchableOpacity
       style={[
         styles.button,
         isPrimary ? styles.primary : styles.secondary,
+        isDisabled && styles.disabled,
         style
       ]}
       onPress={onPress}
-      disabled={loading}
+      disabled={isDisabled}
       activeOpacity={0.8}
     >
       {loading ? (
@@ -53,6 +56,9 @@ const styles = StyleSheet.create({
   },
   secondary: {
     backgroundColor: Colors.surfaceContainerHighest,
+  },
+  disabled: {
+    opacity: 0.5,
   },
   text: {
     fontFamily: Typography.fontBody_SemiBold,

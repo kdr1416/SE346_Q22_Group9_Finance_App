@@ -59,9 +59,13 @@ export default function usePots() {
     };
 
     if (potData.id) {
+      const snapshot = pots;
       setPots(prev => prev.map(p => p.id === potData.id ? { ...p, ...potData } : p));
-      const { error } = await supabase.from('pots').update(dbPayload).eq('id', potData.id);
-      if (error) Alert.alert('Lỗi cập nhật lọ', error.message);
+      const { error } = await supabase.from('pots').update(dbPayload).eq('id', potData.id).eq('user_id', user.id);
+      if (error) {
+        setPots(snapshot);
+        Alert.alert('Lỗi cập nhật lọ', error.message);
+      }
     } else {
       // Tạo lọ mới: insert trước, chỉ thêm vào UI khi có ID thật từ DB
       const { data, error } = await supabase
@@ -108,7 +112,8 @@ export default function usePots() {
     const { error: potError } = await supabase
       .from('pots')
       .update({ saved_amount: newSaved })
-      .eq('id', pot.id);
+      .eq('id', pot.id)
+      .eq('user_id', user.id);
 
     if (potError) {
       Alert.alert('Lỗi nạp tiền', potError.message);
@@ -175,7 +180,8 @@ export default function usePots() {
     const { error: potError } = await supabase
       .from('pots')
       .update({ saved_amount: newSaved })
-      .eq('id', pot.id);
+      .eq('id', pot.id)
+      .eq('user_id', user.id);
 
     if (potError) {
       Alert.alert('Lỗi rút tiền', potError.message);
@@ -231,7 +237,8 @@ export default function usePots() {
     const { error: potError } = await supabase
       .from('pots')
       .update({ is_completed: true })
-      .eq('id', pot.id);
+      .eq('id', pot.id)
+      .eq('user_id', user.id);
 
     if (potError) {
       Alert.alert('Lỗi kết thúc lọ', potError.message);
@@ -273,11 +280,15 @@ export default function usePots() {
 
   // Xóa lọ
   const deletePot = useCallback(async (id) => {
-    if (!id) return;
+    if (!id || !user) return;
+    const snapshot = pots;
     setPots(prev => prev.filter(p => p.id !== id));
-    const { error } = await supabase.from('pots').delete().eq('id', id);
-    if (error) Alert.alert('Lỗi xóa lọ', error.message);
-  }, []);
+    const { error } = await supabase.from('pots').delete().eq('id', id).eq('user_id', user.id);
+    if (error) {
+      setPots(snapshot);
+      Alert.alert('Lỗi xóa lọ', error.message);
+    }
+  }, [user, pots]);
 
   const totalSaved = useMemo(() => pots.reduce((sum, p) => sum + p.savedAmount, 0), [pots]);
   const totalTarget = useMemo(() => pots.reduce((sum, p) => sum + p.targetAmount, 0), [pots]);

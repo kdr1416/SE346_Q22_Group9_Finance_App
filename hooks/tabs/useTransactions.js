@@ -29,6 +29,7 @@ export default function useTransactions() {
       const { data, error } = await supabase
         .from('transactions')
         .select('*')
+        .eq('user_id', user.id)
         .order('date', { ascending: false });
 
       if (!error && data) {
@@ -94,8 +95,18 @@ export default function useTransactions() {
         Alert.alert('Không thể sửa', 'Giao dịch này được tạo tự động bởi hệ thống.');
         return;
       }
+      // Optimistic update + rollback
+      const snapshot = transactions;
       setTransactions(prev => prev.map(t => t.id === trxData.id ? { ...t, ...trxData } : t));
-      await supabase.from('transactions').update(dbPayload).eq('id', trxData.id);
+      const { error: updateError } = await supabase
+        .from('transactions')
+        .update(dbPayload)
+        .eq('id', trxData.id)
+        .eq('user_id', user.id);
+      if (updateError) {
+        setTransactions(snapshot);
+        Alert.alert('Lỗi cập nhật', updateError.message);
+      }
     } else {
       // INSERT mới - Đợi dữ liệu thật từ DB trả về để đồng bộ ID đồng nhất
       const { data, error } = await supabase
@@ -115,6 +126,7 @@ export default function useTransactions() {
         const { data: allTrx } = await supabase
           .from('transactions')
           .select('*')
+          .eq('user_id', user.id)
           .order('date', { ascending: false });
         if (allTrx) setTransactions(allTrx.map(mapDbToLocal));
       }
@@ -133,14 +145,15 @@ export default function useTransactions() {
       return;
     }
 
-    // Optimistic UI
+    // Optimistic UI + rollback
+    const snapshot = transactions;
     setTransactions(prev => prev.filter(t => t.id !== id));
-    const { error } = await removeTransaction(id);
+    const { error } = await removeTransaction(id, user.id);
     if (error) {
-      // Rollback nếu lỗi
+      setTransactions(snapshot);
       Alert.alert('Lỗi xóa giao dịch', error.message);
     }
-  }, [transactions]);
+  }, [user, transactions]);
 
   const filtered = useMemo(() => {
     let result = transactions;

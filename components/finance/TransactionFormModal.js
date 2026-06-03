@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
@@ -7,6 +7,7 @@ import { Spacing } from '../../constants/Spacing';
 import AppInput from '../ui/AppInput';
 import AppButton from '../ui/AppButton';
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../../constants/Categories';
+import { parseMoney } from '../../utils/validation';
 
 export default function TransactionFormModal({ visible, onClose, onSave, onDelete, initialData }) {
   const isEditing = !!initialData;
@@ -44,10 +45,16 @@ export default function TransactionFormModal({ visible, onClose, onSave, onDelet
   const handleSave = () => {
     if (!title || !amount) return;
 
+    const parsedAmount = parseMoney(amount);
+    if (parsedAmount === null) {
+      Alert.alert('Lỗi', 'Số tiền không hợp lệ. Vui lòng nhập số nguyên dương.');
+      return;
+    }
+
     onSave({
       id: isEditing ? initialData.id : undefined,
       title,
-      amount: parseInt(amount, 10),
+      amount: parsedAmount,
       type,
       category: category.value,
       iconName: category.icon,

@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
 import { Spacing } from '../../constants/Spacing';
 import AppInput from '../ui/AppInput';
 import AppButton from '../ui/AppButton';
+import { parseMoney } from '../../utils/validation';
 
 export default function BudgetFormModal({ visible, onClose, onSave, onDelete, initialData, availableCategories }) {
   const isEditing = !!initialData;
@@ -37,9 +38,15 @@ export default function BudgetFormModal({ visible, onClose, onSave, onDelete, in
   const handleSave = () => {
     if (!amount || !category) return;
 
+    const parsedAmount = parseMoney(amount);
+    if (parsedAmount === null) {
+      Alert.alert('Lỗi', 'Hạn mức không hợp lệ. Vui lòng nhập số nguyên dương.');
+      return;
+    }
+
     onSave({
       id: isEditing ? initialData.id : undefined,
-      limit: parseInt(amount, 10),
+      limit: parsedAmount,
       category: category.value,
     });
     onClose();

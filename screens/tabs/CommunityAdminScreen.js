@@ -69,6 +69,8 @@ export default function CommunityAdminScreen({ navigation }) {
     handleCreateTopic,
     handleUpdateTopic,
     handleDeleteTopic,
+    userRole,
+    checkRole,
   } = useCommunityAdmin();
 
   // Review note inputs (keyed by reportId)
@@ -91,12 +93,41 @@ export default function CommunityAdminScreen({ navigation }) {
   const [restrictDays, setRestrictDays] = useState('3'); // 1, 3, 7, 30
 
   useEffect(() => {
-    if (activeTab === 'reports') {
-      loadReports(reportsFilter);
-    } else {
-      loadTopics();
+    checkRole();
+  }, [checkRole]);
+
+  useEffect(() => {
+    if (userRole && ['admin', 'moderator'].includes(userRole)) {
+      if (activeTab === 'reports') {
+        loadReports(reportsFilter);
+      } else {
+        loadTopics();
+      }
     }
-  }, [activeTab, reportsFilter, loadReports, loadTopics]);
+  }, [activeTab, reportsFilter, loadReports, loadTopics, userRole]);
+
+  // Không có quyền → hiển thị màn hình từ chối
+  if (userRole !== null && !['admin', 'moderator'].includes(userRole)) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={24} color={Colors.onSurface} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Quản trị</Text>
+        </View>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl }}>
+          <Ionicons name="shield-outline" size={64} color={Colors.onSurfaceVariant} />
+          <Text style={{ fontFamily: Typography.fontHeadline_Bold, fontSize: Typography.titleMd, color: Colors.onSurface, marginTop: Spacing.lg, textAlign: 'center' }}>
+            Không có quyền truy cập
+          </Text>
+          <Text style={{ fontFamily: Typography.fontBody_Regular, fontSize: Typography.bodyMd, color: Colors.onSurfaceVariant, marginTop: Spacing.sm, textAlign: 'center' }}>
+            Chỉ Admin hoặc Moderator mới có thể truy cập trang này.
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   const openCreateTopicModal = () => {
     setEditingTopic(null);

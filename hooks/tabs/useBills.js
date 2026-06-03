@@ -1,4 +1,5 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { Alert } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useIsFocused } from '@react-navigation/native';
@@ -10,6 +11,7 @@ export default function useBills(defaultMonth = new Date().getMonth() + 1, defau
   const [bills, setBills] = useState([]);
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const processing = useRef(false);
   
   const [selectedMonth, setSelectedMonth] = useState(defaultMonth);
   const [selectedYear, setSelectedYear] = useState(defaultYear);
@@ -24,6 +26,7 @@ export default function useBills(defaultMonth = new Date().getMonth() + 1, defau
       const { data: billsData, error: billsError } = await supabase
         .from('bills')
         .select('*')
+        .eq('user_id', user.id)
         .eq('is_archived', false);
       
       if (!billsError && billsData) {
@@ -43,7 +46,8 @@ export default function useBills(defaultMonth = new Date().getMonth() + 1, defau
       // 2. Lấy lịch sử thanh toán
       const { data: paymentsData, error: paymentsError } = await supabase
         .from('bill_payments')
-        .select('*');
+        .select('*')
+        .eq('user_id', user.id);
         
       if (!paymentsError && paymentsData) {
         const mappedPayments = paymentsData.map(p => ({
@@ -119,66 +123,96 @@ export default function useBills(defaultMonth = new Date().getMonth() + 1, defau
   }, [visibleBills, payments, currentPeriod, currentYearPeriod]);
 
   const togglePaid = useCallback(async (id, currentIsPaid, period) => {
-    if (!user) return;
+    if (!user || processing.current) return;
+    processing.current = true;
     
     const bill = bills.find(b => b.id === id);
-    if (!bill) return;
+    if (!bill) { processing.current = false; return; }
 
-    // Optimistic Update: Sửa UI ngay lập tức
-    if (currentIsPaid) {
-      setPayments(prev => prev.filter(p => !(p.billId === id && p.period === period)));
-      
-      // 1. Hủy xác nhận thanh toán Hóa Đơn
-      await supabase
-        .from('bill_payments')
-        .delete()
-        .eq('bill_id', id)
-        .eq('period', period);
+    // Snapshot for rollback
+    const paymentsSnapshot = payments;
+
+    try {
+      if (currentIsPaid) {
+        // Optimistic: remove payment from UI
+        setPayments(prev => prev.filter(p => !(p.billId === id && p.period === period)));
         
-      // 2. Hủy bỏ Giao dịch đã sinh ra
-      await supabase
-        .from('transactions')
-        .delete()
-        .eq('linked_bill_id', id)
-        .eq('linked_period', period);
-    } else {
-      const tempId = Math.random().toString();
-      setPayments(prev => [...prev, { id: tempId, billId: id, period }]);
-      
-      const { data } = await supabase
-        .from('bill_payments')
-        .insert({ bill_id: id, period: period, user_id: user.id })
-        .select()
-        .single();
+        // 1. Hủy xác nhận thanh toán Hóa Đơn
+        const { error: delPayErr } = await supabase
+          .from('bill_payments')
+          .delete()
+          .eq('bill_id', id)
+          .eq('period', period)
+          .eq('user_id', user.id);
+          
+        if (delPayErr) throw delPayErr;
+
+        // 2. Hủy bỏ Giao dịch đã sinh ra
+        await supabase
+          .from('transactions')
+          .delete()
+          .eq('linked_bill_id', id)
+          .eq('linked_period', period)
+          .eq('user_id', user.id);
+      } else {
+        const tempId = Math.random().toString();
+        setPayments(prev => [...prev, { id: tempId, billId: id, period }]);
         
-      if (data) {
-        setPayments(prev => prev.map(p => p.id === tempId ? { ...p, id: data.id } : p));
+        const { data, error: insErr } = await supabase
+          .from('bill_payments')
+          .insert({ bill_id: id, period: period, user_id: user.id })
+          .select()
+          .single();
+        
+        if (insErr) throw insErr;
+
+        if (data) {
+          setPayments(prev => prev.map(p => p.id === tempId ? { ...p, id: data.id } : p));
+        }
+        
+        // Khởi tạo Transaction Chi Tiêu Ghi nợ
+        await supabase.from('transactions').insert({
+          user_id: user.id,
+          title: bill.title + ` (Kỳ ${period})`,
+          category: bill.category || 'Khác',
+          amount: bill.amount,
+          type: 'expense',
+          icon_name: bill.iconName,
+          linked_bill_id: id,
+          linked_period: period,
+        });
       }
-      
-      // Khởi tạo Transaction Chi Tiêu Ghi nợ
-      await supabase.from('transactions').insert({
-        user_id: user.id,
-        title: bill.title + ` (Kỳ ${period})`,
-        category: bill.category || 'Khác',
-        amount: bill.amount,
-        type: 'expense',
-        icon_name: bill.iconName,
-        linked_bill_id: id,
-        linked_period: period,
-      });
+    } catch (err) {
+      setPayments(paymentsSnapshot);
+      Alert.alert('Lỗi', err.message || 'Không thể cập nhật trạng thái thanh toán.');
+    } finally {
+      processing.current = false;
     }
-  }, [user, bills]);
+  }, [user, bills, payments]);
 
   const deleteBill = useCallback(async (id) => {
-    if (!id) return;
+    if (!id || !user || processing.current) return;
+    processing.current = true;
     // Optimistic Update: Soft Delete - Chặn xóa cứng để bảo vệ Balance Lịch Sử
+    const snapshot = bills;
     setBills(prev => prev.filter(bill => bill.id !== id));
     
-    await supabase.from('bills').update({ is_archived: true }).eq('id', id);
-  }, []);
+    const { error } = await supabase
+      .from('bills')
+      .update({ is_archived: true })
+      .eq('id', id)
+      .eq('user_id', user.id);
+    
+    if (error) {
+      setBills(snapshot);
+      Alert.alert('Lỗi', error.message || 'Không thể xóa hóa đơn.');
+    }
+    processing.current = false;
+  }, [user, bills]);
 
   const saveBill = useCallback(async (billData) => {
-    if (!user) return;
+    if (!user || processing.current) return;
+    processing.current = true;
     
     const dbPayload = {
       title: billData.title,
@@ -191,27 +225,43 @@ export default function useBills(defaultMonth = new Date().getMonth() + 1, defau
       user_id: user.id
     };
 
-    if (billData.id) {
-      // Cập nhật hóa đơn
-      setBills(prev => prev.map(b => b.id === billData.id ? { ...b, ...billData } : b));
-      await supabase.from('bills').update(dbPayload).eq('id', billData.id);
-    } else {
-      // Tạo hóa đơn mới
-      const tempId = Math.random().toString();
-      const newBill = { ...billData, id: tempId };
-      setBills(prev => [newBill, ...prev]);
-      
-      const { data } = await supabase
-        .from('bills')
-        .insert(dbPayload)
-        .select()
-        .single();
+    const snapshot = bills;
+
+    try {
+      if (billData.id) {
+        // Cập nhật hóa đơn
+        setBills(prev => prev.map(b => b.id === billData.id ? { ...b, ...billData } : b));
+        const { error } = await supabase
+          .from('bills')
+          .update(dbPayload)
+          .eq('id', billData.id)
+          .eq('user_id', user.id);
+        if (error) throw error;
+      } else {
+        // Tạo hóa đơn mới
+        const tempId = Math.random().toString();
+        const newBill = { ...billData, id: tempId };
+        setBills(prev => [newBill, ...prev]);
         
-      if (data) {
-        setBills(prev => prev.map(b => b.id === tempId ? { ...b, id: data.id } : b));
+        const { data, error } = await supabase
+          .from('bills')
+          .insert(dbPayload)
+          .select()
+          .single();
+        
+        if (error) throw error;
+
+        if (data) {
+          setBills(prev => prev.map(b => b.id === tempId ? { ...b, id: data.id } : b));
+        }
       }
+    } catch (err) {
+      setBills(snapshot);
+      Alert.alert('Lỗi', err.message || 'Không thể lưu hóa đơn.');
+    } finally {
+      processing.current = false;
     }
-  }, [user]);
+  }, [user, bills]);
 
   const unpaid = useMemo(() => mappedBills.filter(b => !b.isPaid), [mappedBills]);
   const paid = useMemo(() => mappedBills.filter(b => b.isPaid), [mappedBills]);

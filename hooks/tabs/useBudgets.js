@@ -64,6 +64,7 @@ export default function useBudgets(defaultMonth = new Date().getMonth() + 1, def
       let { data: bData, error: bError } = await supabase
         .from('budgets')
         .select('*')
+        .eq('user_id', user.id)
         .eq('period', currentPeriod);
       
       if (bError) {
@@ -115,6 +116,7 @@ export default function useBudgets(defaultMonth = new Date().getMonth() + 1, def
       const { data: tData, error: tError } = await supabase
         .from('transactions')
         .select('category, amount, type')
+        .eq('user_id', user.id)
         .gte('date', startDate)
         .lt('date', endDate);
 
@@ -183,9 +185,13 @@ export default function useBudgets(defaultMonth = new Date().getMonth() + 1, def
     };
 
     if (budgetData.id) {
+      const snapshot = budgets;
       setBudgets(prev => prev.map(b => b.id === budgetData.id ? { ...b, limit: budgetData.limit } : b));
-      const { error } = await supabase.from('budgets').update({ limit: budgetData.limit }).eq('id', budgetData.id);
-      if (error) Alert.alert('Lỗi Database Update', error.message);
+      const { error } = await supabase.from('budgets').update({ limit: budgetData.limit }).eq('id', budgetData.id).eq('user_id', user.id);
+      if (error) {
+        setBudgets(snapshot);
+        Alert.alert('Lỗi cập nhật ngân sách', error.message);
+      }
     } else {
       const tempId = Math.random().toString();
       const currentSpent = breakdown.find(c => c.category === budgetData.category)?.spent || 0;
@@ -213,10 +219,15 @@ export default function useBudgets(defaultMonth = new Date().getMonth() + 1, def
   }, [user, currentPeriod, breakdown]);
 
   const deleteBudget = useCallback(async (id) => {
-    if (!id || id.startsWith('0.')) return; 
+    if (!id || id.startsWith('0.') || !user) return; 
+    const snapshot = budgets;
     setBudgets(prev => prev.filter(b => b.id !== id));
-    await supabase.from('budgets').delete().eq('id', id);
-  }, []);
+    const { error } = await supabase.from('budgets').delete().eq('id', id).eq('user_id', user.id);
+    if (error) {
+      setBudgets(snapshot);
+      Alert.alert('Lỗi xóa ngân sách', error.message);
+    }
+  }, [user, budgets]);
 
   const totalLimit = useMemo(() => budgets.reduce((sum, b) => sum + b.limit, 0), [budgets]);
 

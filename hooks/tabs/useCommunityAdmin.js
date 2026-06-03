@@ -9,6 +9,7 @@ import {
   createTopic,
   updateTopic,
   deleteTopic,
+  getUserRole,
 } from '../../services/communityService';
 
 export const useCommunityAdmin = () => {
@@ -19,11 +20,26 @@ export const useCommunityAdmin = () => {
   const [topics, setTopics] = useState([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [userRole, setUserRole] = useState(null); // 'admin' | 'moderator' | null
+
+  // Kiểm tra role khi mount
+  const checkRole = useCallback(async () => {
+    if (!user) return;
+    try {
+      const role = await getUserRole(user.id);
+      setUserRole(role);
+      if (!role || !['admin', 'moderator'].includes(role)) {
+        Alert.alert('Không có quyền', 'Bạn không có quyền truy cập trang quản trị.');
+      }
+    } catch (err) {
+      console.error('Lỗi kiểm tra role:', err.message);
+    }
+  }, [user]);
 
   const loadReports = useCallback(async (filter = reportsFilter) => {
     try {
       setLoading(true);
-      const data = await getReports(filter);
+      const data = await getReports(filter, user?.id);
       setReports(data);
     } catch (error) {
       console.error('Lỗi tải báo cáo:', error.message);
@@ -159,5 +175,7 @@ export const useCommunityAdmin = () => {
     handleCreateTopic,
     handleUpdateTopic,
     handleDeleteTopic,
+    userRole,
+    checkRole,
   };
 };

@@ -794,3 +794,86 @@ export const getGroupFundChartData = async (groupFundId) => {
     throw error;
   }
 };
+
+/**
+ * 22. Cập nhật thông tin quỹ nhóm (Tên, mô tả, số tiền mục tiêu)
+ */
+export const updateGroupFundInfo = async (groupFundId, updates, userId) => {
+  const { error } = await supabase
+    .from('group_funds')
+    .update({
+      name: updates.name,
+      description: updates.description,
+      target_amount: updates.targetAmount || null,
+    })
+    .eq('id', groupFundId);
+
+  if (error) throw error;
+
+  await addActivityLog(groupFundId, userId, 'update_fund', 'fund', groupFundId, 'Cập nhật thông tin quỹ nhóm');
+};
+
+/**
+ * 23. Rời khỏi quỹ nhóm
+ */
+export const leaveGroup = async (groupFundId, userId) => {
+  // A. Kiểm tra chức vụ của thành viên
+  const { data: member, error: checkError } = await supabase
+    .from('group_fund_members')
+    .select('role')
+    .eq('group_fund_id', groupFundId)
+    .eq('user_id', userId)
+    .single();
+
+  if (checkError) throw checkError;
+
+  if (member?.role === 'owner') {
+    throw new Error('Chủ quỹ không thể rời nhóm. Vui lòng chuyển giao quyền Chủ quỹ trước.');
+  }
+
+  // B. Cập nhật trạng thái thành viên thành 'left'
+  const { error } = await supabase
+    .from('group_fund_members')
+    .update({ status: 'left' })
+    .eq('group_fund_id', groupFundId)
+    .eq('user_id', userId);
+
+  if (error) throw error;
+
+  await addActivityLog(groupFundId, userId, 'leave_group', 'member', null, 'Đã rời khỏi quỹ nhóm');
+};
+
+/**
+ * 24. Đóng/kết thúc hoạt động của quỹ nhóm
+ */
+export const closeGroupFund = async (groupFundId, userId) => {
+  const { error } = await supabase
+    .from('group_funds')
+    .update({ status: 'closed' })
+    .eq('id', groupFundId);
+
+  if (error) throw error;
+
+  await addActivityLog(groupFundId, userId, 'close_fund', 'fund', groupFundId, 'Đã đóng quỹ nhóm');
+};
+
+/**
+ * 25. Dừng yêu cầu thu quỹ (Chuyển trạng thái sang completed)
+ */
+export const stopPaymentRequest = async (paymentRequestId, groupFundId, userId, requestTitle) => {
+  const { error } = await supabase
+    .from('payment_requests')
+    .update({ status: 'completed' })
+    .eq('id', paymentRequestId);
+
+  if (error) throw error;
+
+  await addActivityLog(
+    groupFundId,
+    userId,
+    'close_request',
+    'payment_request',
+    paymentRequestId,
+    `Dừng yêu cầu thu quỹ "${requestTitle}"`
+  );
+};

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
@@ -7,6 +7,7 @@ import { Spacing } from '../../constants/Spacing';
 import AppInput from '../ui/AppInput';
 import AppButton from '../ui/AppButton';
 import { EXPENSE_CATEGORIES } from '../../constants/Categories';
+import { parseMoney, isDayOfMonth, isMonth } from '../../utils/validation';
 
 export default function BillFormModal({ visible, onClose, onSave, onDelete, initialData }) {
   const isEditing = !!initialData;
@@ -43,13 +44,32 @@ export default function BillFormModal({ visible, onClose, onSave, onDelete, init
     if (!title || !amount || !dueDay) return;
     if (cycle === 'yearly' && !dueMonth) return;
 
+    const parsedAmount = parseMoney(amount);
+    if (parsedAmount === null) {
+      Alert.alert('Lỗi', 'Số tiền không hợp lệ. Vui lòng nhập số nguyên dương.');
+      return;
+    }
+    const parsedDay = isDayOfMonth(dueDay);
+    if (parsedDay === null) {
+      Alert.alert('Lỗi', 'Ngày hạn phải từ 1 đến 31.');
+      return;
+    }
+    let parsedMonth;
+    if (cycle === 'yearly') {
+      parsedMonth = isMonth(dueMonth);
+      if (parsedMonth === null) {
+        Alert.alert('Lỗi', 'Tháng hạn phải từ 1 đến 12.');
+        return;
+      }
+    }
+
     onSave({
       id: isEditing ? initialData.id : undefined,
       title,
-      amount: parseInt(amount, 10),
+      amount: parsedAmount,
       cycle,
-      dueDayOfMonth: parseInt(dueDay, 10),
-      dueMonthOfYear: cycle === 'yearly' ? parseInt(dueMonth, 10) : undefined,
+      dueDayOfMonth: parsedDay,
+      dueMonthOfYear: parsedMonth,
       category: category.value,
       iconName: category.icon,
     });

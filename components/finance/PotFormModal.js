@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
 import { Spacing } from '../../constants/Spacing';
 import AppInput from '../ui/AppInput';
 import AppButton from '../ui/AppButton';
+import { parseMoney } from '../../utils/validation';
 
 const PRESET_ICONS = [
   { icon: 'airplane-outline', label: 'Du lịch' },
@@ -48,10 +49,17 @@ export default function PotFormModal({ visible, onClose, onSave, onDelete, initi
 
   const handleSave = () => {
     if (!name || !targetAmount) return;
+
+    const parsedTarget = parseMoney(targetAmount);
+    if (parsedTarget === null) {
+      Alert.alert('Lỗi', 'Số tiền mục tiêu không hợp lệ. Vui lòng nhập số nguyên dương.');
+      return;
+    }
+
     onSave({
       id: isEditing ? initialData.id : undefined,
       name,
-      targetAmount: parseInt(targetAmount, 10),
+      targetAmount: parsedTarget,
       targetDate: targetDate || null,
       iconName: selectedIcon,
       color: selectedColor,

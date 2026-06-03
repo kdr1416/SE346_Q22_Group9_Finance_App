@@ -7,6 +7,7 @@ import { Spacing } from '../../constants/Spacing';
 import AppInput from '../ui/AppInput';
 import AppButton from '../ui/AppButton';
 import { formatVND } from '../../utils/currency';
+import { parseMoney } from '../../utils/validation';
 
 export default function PotActionModal({ visible, onClose, pot, availableBalance = 0, onDeposit, onWithdraw }) {
   const [mode, setMode] = useState('deposit'); // 'deposit' | 'withdraw'
@@ -28,9 +29,9 @@ export default function PotActionModal({ visible, onClose, pot, availableBalance
 
   const handleConfirm = async () => {
     setError('');
-    const parsed = parseInt(amount, 10);
-    if (!parsed || parsed <= 0) {
-      setError('Vui lòng nhập số tiền hợp lệ.');
+    const parsed = parseMoney(amount);
+    if (parsed === null) {
+      setError('Vui lòng nhập số tiền hợp lệ (số nguyên dương).');
       return;
     }
 

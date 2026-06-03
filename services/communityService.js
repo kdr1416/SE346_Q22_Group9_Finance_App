@@ -2,6 +2,26 @@ import { supabase } from '../lib/supabase';
 import { mapPostData, escapePostgrestFilter, NOTIFICATION_PREVIEW_LENGTH } from '../utils/communityHelpers';
 
 /**
+ * Helper: Kiểm tra user có role admin/moderator không.
+ * Dùng làm defense-in-depth trước khi gọi query (RLS vẫn là guard chính).
+ * @param {string} userId
+ * @throws {Error} nếu không phải admin/moderator
+ */
+const requireAdmin = async (userId) => {
+  const { data, error } = await supabase
+    .from('user_community_roles')
+    .select('role')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error) throw new Error('Không thể xác minh quyền quản trị.');
+  if (!data || !['admin', 'moderator'].includes(data.role)) {
+    throw new Error('Bạn không có quyền thực hiện thao tác này.');
+  }
+  return data.role;
+};
+
+/**
  * Helper: Giải mã chuỗi Base64 thành ArrayBuffer trong React Native
  */
 const decodeBase64 = (base64) => {
@@ -635,7 +655,9 @@ export const createReport = async ({ reporterId, targetType, targetId, reason, d
 /**
  * 16. Admin/Moderator: Xem danh sách báo cáo
  */
-export const getReports = async (statusFilter = 'pending') => {
+export const getReports = async (statusFilter = 'pending', callerId = null) => {
+  if (callerId) await requireAdmin(callerId);
+
   const { data, error } = await supabase
     .from('community_reports')
     .select(`
@@ -726,6 +748,8 @@ export const getReports = async (statusFilter = 'pending') => {
  * 17. Admin/Moderator: Xử lý báo cáo nội dung
  */
 export const resolveReport = async (reportId, adminId, action, reviewResult) => {
+  await requireAdmin(adminId);
+
   const status = action === 'dismiss' ? 'dismissed' : 'reviewed';
 
   const { data: report, error: reportError } = await supabase
@@ -1076,6 +1100,8 @@ export const checkUserRestriction = async (userId) => {
  * 30. Admin/Moderator: Hạn chế hoạt động của người dùng
  */
 export const restrictUser = async (userId, restrictionType, reason, adminId, durationDays = null) => {
+  await requireAdmin(adminId);
+
   let expiresAt = null;
   if (durationDays) {
     expiresAt = new Date();
