@@ -118,9 +118,21 @@ export default function useBills(defaultMonth = new Date().getMonth() + 1, defau
       const checkPeriod = isYearly ? currentYearPeriod : currentPeriod;
       
       const isPaid = payments.some(p => p.billId === bill.id && p.period === checkPeriod);
-      return { ...bill, isPaid, currentPeriod: checkPeriod };
+
+  // Kiem tra qua han
+  let billDueDate = null;
+  if (isYearly && bill.dueMonthOfYear) {
+   const dueDay = bill.dueDayOfMonth || 1;
+   billDueDate = new Date(selectedYear, bill.dueMonthOfYear - 1, dueDay);
+  } else if (!isYearly && bill.dueDayOfMonth) {
+   billDueDate = new Date(selectedYear, selectedMonth - 1, bill.dueDayOfMonth);
+  }
+  const today = new Date();
+  const isOverdue = !isPaid && billDueDate && billDueDate < today;
+
+      return { ...bill, isPaid, currentPeriod: checkPeriod, isOverdue };
     });
-  }, [visibleBills, payments, currentPeriod, currentYearPeriod]);
+  }, [visibleBills, payments, currentPeriod, currentYearPeriod, selectedMonth, selectedYear]);
 
   const togglePaid = useCallback(async (id, currentIsPaid, period) => {
     if (!user || processing.current) return;

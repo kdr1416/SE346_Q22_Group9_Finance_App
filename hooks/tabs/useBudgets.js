@@ -185,9 +185,9 @@ export default function useBudgets(defaultMonth = new Date().getMonth() + 1, def
     };
 
     if (budgetData.id) {
-      const snapshot = budgets;
-      setBudgets(prev => prev.map(b => b.id === budgetData.id ? { ...b, limit: budgetData.limit } : b));
-      const { error } = await supabase.from('budgets').update({ limit: budgetData.limit }).eq('id', budgetData.id).eq('user_id', user.id);
+      const snapshot = [...budgets];
+      setBudgets(prev => prev.map(b => b.id === budgetData.id ? { ...b, limit: budgetData.limit, color: getCategoryColor(budgetData.category, 'expense'), icon_name: getCategoryIcon(budgetData.category, 'expense') } : b));
+      const { error } = await supabase.from('budgets').update({ limit: budgetData.limit, color: getCategoryColor(budgetData.category, 'expense'), icon_name: getCategoryIcon(budgetData.category, 'expense') }).eq('id', budgetData.id).eq('user_id', user.id);
       if (error) {
         setBudgets(snapshot);
         Alert.alert('Lỗi cập nhật ngân sách', error.message);
@@ -220,7 +220,7 @@ export default function useBudgets(defaultMonth = new Date().getMonth() + 1, def
 
   const deleteBudget = useCallback(async (id) => {
     if (!id || id.startsWith('0.') || !user) return; 
-    const snapshot = budgets;
+    const snapshot = [...budgets];
     setBudgets(prev => prev.filter(b => b.id !== id));
     const { error } = await supabase.from('budgets').delete().eq('id', id).eq('user_id', user.id);
     if (error) {

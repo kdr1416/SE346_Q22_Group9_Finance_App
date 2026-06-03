@@ -9,6 +9,7 @@ import {
   checkUserRestriction,
   getTopics,
 } from '../../services/communityService';
+import { analyzePostAfterPublish } from '../../services/aiCommunityService';
 
 export default function useCreatePost(navigation, route) {
   const { user } = useAuth();
@@ -174,7 +175,7 @@ export default function useCreatePost(navigation, route) {
         Alert.alert('Thành công 🎉', 'Bài viết của bạn đã được cập nhật thành công.');
       } else {
         // CHẾ ĐỘ ĐĂNG BÀI VIẾT MỚI
-        await createPost({
+        const newPost = await createPost({
           authorId: userId,
           title: trimmedTitle,
           content: htmlContent,
@@ -182,6 +183,10 @@ export default function useCreatePost(navigation, route) {
           topicIds: selectedTopicIds,
           imageUri: imageUri,
         });
+
+        // Gọi AI kiểm duyệt hậu kiểm (fire-and-forget, không block UI)
+        analyzePostAfterPublish(newPost);
+
         Alert.alert('Thành công 🎉', 'Bài viết đã được đăng tải lên bảng tin cộng đồng.');
       }
 

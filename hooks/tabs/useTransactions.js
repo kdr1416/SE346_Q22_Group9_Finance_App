@@ -35,7 +35,9 @@ export default function useTransactions() {
       if (!error && data) {
         const mapped = data.map(mapDbToLocal);
         setTransactions(mapped);
-      }
+ } else if (error) {
+  Alert.alert('Lỗi', 'Không thể tải danh sách giao dịch.');
+ }
       setLoading(false);
     };
 
@@ -96,7 +98,7 @@ export default function useTransactions() {
         return;
       }
       // Optimistic update + rollback
-      const snapshot = transactions;
+      const snapshot = [...transactions];
       setTransactions(prev => prev.map(t => t.id === trxData.id ? { ...t, ...trxData } : t));
       const { error: updateError } = await supabase
         .from('transactions')
@@ -146,7 +148,7 @@ export default function useTransactions() {
     }
 
     // Optimistic UI + rollback
-    const snapshot = transactions;
+    const snapshot = [...transactions];
     setTransactions(prev => prev.filter(t => t.id !== id));
     const { error } = await removeTransaction(id, user.id);
     if (error) {

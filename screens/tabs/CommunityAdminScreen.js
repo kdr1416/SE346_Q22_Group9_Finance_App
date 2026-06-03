@@ -5,11 +5,11 @@ import {
   StyleSheet,
   TouchableOpacity,
   FlatList,
-  ActivityIndicator,
   TextInput,
   Modal,
   ScrollView,
   Alert,
+ ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -59,17 +59,23 @@ export default function CommunityAdminScreen({ navigation }) {
     setReportsFilter,
     reports,
     topics,
+    flaggedPosts,
     loading,
     refreshing,
     loadReports,
     loadTopics,
+    loadFlaggedPosts,
     handleRefresh,
     handleResolveReport,
     handleRestrictUser,
     handleCreateTopic,
     handleUpdateTopic,
     handleDeleteTopic,
+    handleApprovePost,
+    handleHidePost,
     userRole,
+ roleChecked,
+ hasAccess,
     checkRole,
   } = useCommunityAdmin();
 
@@ -97,17 +103,28 @@ export default function CommunityAdminScreen({ navigation }) {
   }, [checkRole]);
 
   useEffect(() => {
-    if (userRole && ['admin', 'moderator'].includes(userRole)) {
+ if (roleChecked && hasAccess) {
       if (activeTab === 'reports') {
         loadReports(reportsFilter);
+      } else if (activeTab === 'ai_review') {
+        loadFlaggedPosts();
       } else {
         loadTopics();
       }
     }
-  }, [activeTab, reportsFilter, loadReports, loadTopics, userRole]);
+  }, [activeTab, reportsFilter, loadReports, loadTopics, loadFlaggedPosts, userRole]);
+
+  // Đang kiểm tra quyền → hiển thị loading
+  if (!roleChecked) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
+    );
+  }
 
   // Không có quyền → hiển thị màn hình từ chối
-  if (userRole !== null && !['admin', 'moderator'].includes(userRole)) {
+  if (roleChecked && !hasAccess) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
@@ -115,8 +132,9 @@ export default function CommunityAdminScreen({ navigation }) {
             <Ionicons name="arrow-back" size={24} color={Colors.onSurface} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Quản trị</Text>
+          <View style={{ width: 24 }} />
         </View>
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl }}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 }}>
           <Ionicons name="shield-outline" size={64} color={Colors.onSurfaceVariant} />
           <Text style={{ fontFamily: Typography.fontHeadline_Bold, fontSize: Typography.titleMd, color: Colors.onSurface, marginTop: Spacing.lg, textAlign: 'center' }}>
             Không có quyền truy cập
@@ -311,6 +329,82 @@ export default function CommunityAdminScreen({ navigation }) {
     );
   };
 
+  const getModerationBadge = (status) => {
+    if (status === 'rejected') return { label: 'Từ chối', color: Colors.error };
+    if (status === 'needs_review') return { label: 'Cần xem xét', color: Colors.error };
+    if (status === 'flagged') return { label: 'Nghi ngờ', color: '#d97706' };
+    return { label: status, color: Colors.onSurfaceVariant };
+  };
+
+  const renderFlaggedItem = ({ item }) => {
+    const badge = getModerationBadge(item.moderationStatus);
+    const scorePercent = item.moderationScore != null ? Math.round(item.moderationScore * 100) : null;
+    const categories = item.moderationCategories || [];
+
+    return (
+      <View style={styles.card}>
+        {/* Header */}
+        <View style={styles.cardHeader}>
+          <View style={[styles.badge, { backgroundColor: badge.color + '20' }]}>
+            <Text style={[styles.badgeText, { color: badge.color }]}>{badge.label}</Text>
+          </View>
+          <Text style={styles.cardTime}>
+            {new Date(item.createdAt).toLocaleDateString('vi-VN')}
+          </Text>
+        </View>
+
+        {/* Title & Author */}
+        <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
+        <Text style={styles.cardMeta}>Tác giả: {item.authorName}</Text>
+
+        {/* AI Analysis */}
+        {scorePercent != null && (
+          <View style={styles.aiScoreRow}>
+            <Ionicons name="analytics-outline" size={16} color={badge.color} />
+            <Text style={[styles.aiScoreText, { color: badge.color }]}>
+              Rủi ro: {scorePercent}%
+            </Text>
+          </View>
+        )}
+
+        {item.moderationReason ? (
+          <Text style={styles.aiReasonText}>
+            <Ionicons name="information-circle-outline" size={14} color={Colors.onSurfaceVariant} />{' '}
+            {item.moderationReason}
+          </Text>
+        ) : null}
+
+        {categories.length > 0 && (
+          <View style={styles.aiCategoriesRow}>
+            {categories.map((cat, idx) => (
+              <View key={idx} style={styles.aiCategoryChip}>
+                <Text style={styles.aiCategoryText}>{cat}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Actions */}
+        <View style={[styles.buttonRow, { marginTop: 12 }]}>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.dismissButton]}
+            onPress={() => handleApprovePost(item.id)}
+          >
+            <Ionicons name="checkmark-circle-outline" size={18} color={Colors.primary} />
+            <Text style={styles.dismissButtonText}>Giữ bài</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.hideButton]}
+            onPress={() => handleHidePost(item.id)}
+          >
+            <Ionicons name="eye-off-outline" size={18} color={Colors.error} />
+            <Text style={styles.hideButtonText}>Ẩn bài</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
@@ -334,13 +428,19 @@ export default function CommunityAdminScreen({ navigation }) {
           style={[styles.tabButton, activeTab === 'reports' && styles.tabButtonActive]}
           onPress={() => setActiveTab('reports')}
         >
-          <Text style={[styles.tabText, activeTab === 'reports' && styles.tabTextActive]}>Báo cáo vi phạm</Text>
+          <Text style={[styles.tabText, activeTab === 'reports' && styles.tabTextActive]}>Báo cáo</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tabButton, activeTab === 'ai_review' && styles.tabButtonActive]}
+          onPress={() => setActiveTab('ai_review')}
+        >
+          <Text style={[styles.tabText, activeTab === 'ai_review' && styles.tabTextActive]}>AI Review</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tabButton, activeTab === 'topics' && styles.tabButtonActive]}
           onPress={() => setActiveTab('topics')}
         >
-          <Text style={[styles.tabText, activeTab === 'topics' && styles.tabTextActive]}>Quản lý Chủ đề</Text>
+          <Text style={[styles.tabText, activeTab === 'topics' && styles.tabTextActive]}>Chủ đề</Text>
         </TouchableOpacity>
       </View>
 
@@ -381,21 +481,21 @@ export default function CommunityAdminScreen({ navigation }) {
         </View>
       ) : (
         <FlatList
-          data={activeTab === 'reports' ? reports : topics}
+          data={activeTab === 'reports' ? reports : activeTab === 'ai_review' ? flaggedPosts : topics}
           keyExtractor={(item) => item.id}
-          renderItem={activeTab === 'reports' ? renderReportItem : renderTopicItem}
+          renderItem={activeTab === 'reports' ? renderReportItem : activeTab === 'ai_review' ? renderFlaggedItem : renderTopicItem}
           refreshing={refreshing}
           onRefresh={handleRefresh}
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Ionicons
-                name={activeTab === 'reports' ? 'shield-checkmark-outline' : 'folder-open-outline'}
+                name={activeTab === 'reports' ? 'shield-checkmark-outline' : activeTab === 'ai_review' ? 'sparkles-outline' : 'folder-open-outline'}
                 size={48}
                 color={Colors.onSurfaceVariant}
               />
               <Text style={styles.emptyText}>
-                {activeTab === 'reports' ? 'Không có báo cáo vi phạm nào.' : 'Chưa có chủ đề nào.'}
+                {activeTab === 'reports' ? 'Không có báo cáo vi phạm nào.' : activeTab === 'ai_review' ? 'Không có bài nào cần kiểm duyệt.' : 'Chưa có chủ đề nào.'}
               </Text>
             </View>
           }
@@ -611,8 +711,7 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     fontFamily: Typography.fontBody_Bold,
   },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  listContent: { padding: 16, gap: 16, paddingBottom: 40 },
+     listContent: { padding: 16, gap: 16, paddingBottom: 40 },
   emptyContainer: { alignItems: 'center', paddingVertical: 60, gap: 12 },
   emptyText: {
     fontFamily: Typography.fontBody_Medium,
@@ -924,5 +1023,42 @@ const styles = StyleSheet.create({
   },
   restrictSubmitBtn: {
     backgroundColor: Colors.error,
+  },
+  // ===== AI REVIEW STYLES =====
+  aiScoreRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+  },
+  aiScoreText: {
+    fontFamily: Typography.fontBody_Bold,
+    fontSize: Typography.labelMd,
+  },
+  aiReasonText: {
+    fontFamily: Typography.fontBody_Medium,
+    fontSize: Typography.bodySm,
+    color: Colors.onSurfaceVariant,
+    marginTop: 6,
+    lineHeight: 18,
+  },
+  aiCategoriesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 8,
+  },
+  aiCategoryChip: {
+    backgroundColor: Colors.errorContainer + '20',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: Colors.errorContainer + '40',
+  },
+  aiCategoryText: {
+    fontFamily: Typography.fontBody_Medium,
+    fontSize: 11,
+    color: Colors.error,
   },
 });

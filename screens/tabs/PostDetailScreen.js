@@ -40,6 +40,7 @@ export default function PostDetailScreen({ navigation, route }) {
     reportModalVisible,
     setReportModalVisible,
     reportTarget,
+    setReportTarget,
     userId,
     handleRefresh,
     handleLike,

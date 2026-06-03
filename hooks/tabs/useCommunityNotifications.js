@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Alert } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../lib/supabase';
 import {
   getNotifications,
   markNotificationRead,
@@ -69,7 +70,23 @@ export const useCommunityNotifications = () => {
   const handleNotificationPress = async (notif, navigation) => {
     await handleMarkRead(notif.id);
 
-    if (notif.type === 'like' || notif.type === 'comment' || notif.type === 'report_resolved') {
+    if (notif.type === 'comment') {
+  // Neu target_type la comment, can lay postId tu community_comments
+  try {
+   const { data: comment } = await supabase
+    .from('community_comments')
+    .select('post_id')
+    .eq('id', notif.targetId)
+    .single();
+   if (comment) {
+    navigation.navigate('PostDetail', { postId: comment.post_id });
+   } else {
+    navigation.navigate('PostDetail', { postId: notif.targetId });
+   }
+  } catch {
+   navigation.navigate('PostDetail', { postId: notif.targetId });
+  }
+ } else if (notif.type === 'like' || notif.type === 'report_resolved') {
       // Nếu là like/comment/report_resolved thì navigate tới PostDetail
       // Đối với report_resolved trên comment, targetId có thể là commentId. 
       // Nhưng để đơn giản và chính xác, communityService.js khi tạo notification đã lưu target_id là ID của post hoặc comment.

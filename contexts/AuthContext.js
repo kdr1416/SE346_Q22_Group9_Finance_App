@@ -14,13 +14,26 @@ export function AuthProvider({ children }) {
   // Lắng nghe sự thay đổi của session (login, logout, token refresh...)
   useEffect(() => {
     // Lấy session hiện tại lúc khởi động mờ app
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error('Session load error:', error.message);
+        // Clear stored invalid session from AsyncStorage
+        supabase.auth.signOut().catch(() => {});
+        setSession(null);
+        setIsLoading(false);
+        return;
+      }
       setSession(session);
       if (session?.user) {
         fetchProfile(session.user.id);
       } else {
         setIsLoading(false);
       }
+    }).catch(err => {
+      console.error('Session getSession catch:', err);
+      supabase.auth.signOut().catch(() => {});
+      setSession(null);
+      setIsLoading(false);
     });
 
     // Lắng nghe sự kiện auth (login/logout/token refresh)

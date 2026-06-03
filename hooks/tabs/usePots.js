@@ -136,6 +136,18 @@ export default function usePots() {
 
     if (trxError) {
       console.error('Lỗi tạo giao dịch cho lọ:', trxError.message);
+ Alert.alert('Lỗi', 'Nạp tiền thất bại, đang hoàn tác...');
+ // Compensate: rollback pot balance
+ const { error: rbErr } = await supabase
+  .from('pots')
+  .update({ saved_amount: pot.savedAmount })
+  .eq('id', pot.id)
+  .eq('user_id', user.id);
+ if (rbErr) {
+  console.error('Lỗi rollback lệ:', rbErr.message);
+ } else {
+  setPots(prev => prev.map(p => p.id === pot.id ? { ...p, savedAmount: pot.savedAmount } : p));
+ }
     } else if (newTrx && onTransactionCreated) {
       // 4. Sync balance real-time qua callback (không cần reload màn hình)
       onTransactionCreated({
@@ -204,6 +216,18 @@ export default function usePots() {
 
     if (trxError) {
       console.error('Lỗi tạo giao dịch rút tiền:', trxError.message);
+ Alert.alert('Lỗi', 'Rút tiền thất bại, đang hoàn tác...');
+ // Compensate: rollback pot balance
+ const { error: rbErr } = await supabase
+  .from('pots')
+  .update({ saved_amount: pot.savedAmount })
+  .eq('id', pot.id)
+  .eq('user_id', user.id);
+ if (rbErr) {
+  console.error('Lỗi rollback lệ:', rbErr.message);
+ } else {
+  setPots(prev => prev.map(p => p.id === pot.id ? { ...p, savedAmount: pot.savedAmount } : p));
+ }
     } else if (newTrx && onTransactionCreated) {
       onTransactionCreated({
         id: newTrx.id,

@@ -307,6 +307,7 @@ export const createPost = async ({ authorId, title, content, postType = 'share',
       post_type: postType,
       image_url: imageUrl,
       status: 'active',
+  moderation_status: 'pending_ai',
     })
     .select()
     .single();

@@ -348,6 +348,7 @@ export default function usePostDetail(navigation, route) {
     reportModalVisible,
     setReportModalVisible,
     reportTarget,
+    setReportTarget,
     userId,
     handleRefresh,
     handleLike,

@@ -121,7 +121,12 @@ export default function useGroupFundDetail(fundParam) {
       Alert.alert('Quỹ đã đóng 🔒', 'Không thể tạo yêu cầu nộp trên quỹ đã đóng.');
       return;
     }
-    await createPaymentRequest(fundParam.id, user.id, title, description, amountPerMember, dueDate, members);
+    const parsedAmount = Number(amountPerMember);
+ if (isNaN(parsedAmount) || parsedAmount <= 0) {
+  Alert.alert('Lỗi', 'Số tiền mỗi người phải lớn hơn 0.');
+  return;
+ }
+ await createPaymentRequest(fundParam.id, user.id, title, description, parsedAmount, dueDate, members);
     await loadAll();
   };
 
@@ -143,14 +148,19 @@ export default function useGroupFundDetail(fundParam) {
       Alert.alert('Quỹ đã đóng 🔒', 'Không thể đề xuất chi trên quỹ đã đóng.');
       return;
     }
-    if (amount > (fundDetail?.currentBalance || 0)) {
+ const parsedAmount = Number(amount);
+ if (isNaN(parsedAmount) || parsedAmount <= 0) {
+  Alert.alert('Lỗi', 'Số tiền chi phải lớn hơn 0.');
+  return;
+ }
+    if (parsedAmount > (fundDetail?.currentBalance || 0)) {
       Alert.alert(
         'Số dư không đủ 💸',
-        `Số dư hiện tại: ${(fundDetail?.currentBalance || 0).toLocaleString('vi-VN')}đ\nSố tiền chi: ${amount.toLocaleString('vi-VN')}đ`
+        `Số dư hiện tại: ${(fundDetail?.currentBalance || 0).toLocaleString('vi-VN')}đ\nSố tiền chi: ${parsedAmount.toLocaleString('vi-VN')}đ`
       );
       return;
     }
-    await createGroupExpense(fundParam.id, user.id, title, amount, category, expenseDate, note, myRole);
+    await createGroupExpense(fundParam.id, user.id, title, parsedAmount, category, expenseDate, note, myRole);
     await loadAll();
   };
 
