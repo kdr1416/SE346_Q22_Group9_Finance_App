@@ -38,6 +38,8 @@ export default function CommunityScreen({ navigation }) {
     handleTopicSelect,
     handleLikePost,
     handleSavePost,
+    showAiNews,
+    toggleAiNews,
   } = useCommunityFeed(navigation);
 
   const renderItem = useCallback(({ item }) => (
@@ -157,6 +159,11 @@ export default function CommunityScreen({ navigation }) {
               topic={{ id: null, name: 'Tất cả', iconName: 'apps-outline', color: Colors.primary }}
               selected={selectedTopicId === null}
               onPress={() => handleTopicSelect(null)}
+            />
+            <TopicChip
+              topic={{ id: 'ai_news_toggle', name: 'Tin AI', iconName: 'sparkles', color: '#0891b2' }}
+              selected={showAiNews}
+              onPress={toggleAiNews}
             />
             {topics.map((t) => (
               <TopicChip key={t.id} topic={t} selected={selectedTopicId === t.id} onPress={() => handleTopicSelect(t.id)} />

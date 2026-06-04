@@ -11,6 +11,7 @@ import {
   updateTopic,
   deleteTopic,
   getUserRole,
+  getAiNewsPosts,
 } from '../../services/communityService';
 
 export const useCommunityAdmin = () => {
@@ -20,6 +21,7 @@ export const useCommunityAdmin = () => {
   const [reports, setReports] = useState([]);
   const [topics, setTopics] = useState([]);
   const [flaggedPosts, setFlaggedPosts] = useState([]);
+  const [aiNewsPosts, setAiNewsPosts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [userRole, setUserRole] = useState(null); // 'admin' | 'moderator' | null
@@ -82,6 +84,8 @@ export const useCommunityAdmin = () => {
       await loadReports(reportsFilter);
     } else if (activeTab === 'ai_review') {
       await loadFlaggedPosts();
+    } else if (activeTab === 'ai_news') {
+      await loadAiNewsPosts();
     } else {
       await loadTopics();
     }
@@ -253,6 +257,63 @@ export const useCommunityAdmin = () => {
     );
   };
 
+  // ===== AI NEWS MANAGEMENT =====
+  const loadAiNewsPosts = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await getAiNewsPosts({ page: 1, limit: 50 });
+      setAiNewsPosts(data);
+    } catch (error) {
+      console.error('Lỗi tải bài tin AI:', error.message);
+      Alert.alert('Lỗi', 'Không thể tải danh sách bài tin AI.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const handleDeleteAiPost = (postId) => {
+    Alert.alert('Xác nhận', 'Bạn có chắc muốn ẩn bài tin AI này?', [
+      { text: 'Hủy', style: 'cancel' },
+      {
+        text: 'Ẩn bài',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            setLoading(true);
+            const { error } = await supabase
+              .from('community_posts')
+              .update({ status: 'hidden' })
+              .eq('id', postId);
+
+            if (error) throw error;
+            setAiNewsPosts((prev) => prev.filter((p) => p.id !== postId));
+            Alert.alert('Thành công', 'Đã ẩn bài tin AI.');
+          } catch (error) {
+            console.error('Lỗi ẩn bài AI:', error.message);
+            Alert.alert('Lỗi', 'Không thể ẩn bài tin AI.');
+          } finally {
+            setLoading(false);
+          }
+        },
+      },
+    ]);
+  };
+
+  const triggerNewsFetch = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase.functions.invoke('ai-news-feed', { body: {} });
+      if (error) throw error;
+      Alert.alert('Thành công', `Đã đăng ${data?.posted || 0} bài tin mới.`);
+      await loadAiNewsPosts();
+    } catch (error) {
+      console.error('Lỗi trigger news fetch:', error.message);
+      Alert.alert('Lỗi', 'Không thể lấy tin tức mới.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
     activeTab,
     setActiveTab,
@@ -261,11 +322,13 @@ export const useCommunityAdmin = () => {
     reports,
     topics,
     flaggedPosts,
+    aiNewsPosts,
     loading,
     refreshing,
     loadReports,
     loadTopics,
     loadFlaggedPosts,
+    loadAiNewsPosts,
     handleRefresh,
     handleResolveReport,
     handleRestrictUser,
@@ -274,9 +337,11 @@ export const useCommunityAdmin = () => {
     handleDeleteTopic,
     handleApprovePost,
     handleHidePost,
+    handleDeleteAiPost,
+    triggerNewsFetch,
     userRole,
- roleChecked,
- hasAccess,
+    roleChecked,
+    hasAccess,
     checkRole,
   };
 };

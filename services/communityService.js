@@ -144,7 +144,7 @@ export const getTopics = async (showInactive = false) => {
 /**
  * 2. Lấy danh sách bài đăng có phân trang, lọc theo danh mục
  */
-export const getPosts = async ({ topicIds = [], page = 1, limit = 10, userId, authorId }) => {
+export const getPosts = async ({ topicIds = [], page = 1, limit = 10, userId, authorId, excludePostType }) => {
   const from = (page - 1) * limit;
   const to = from + limit - 1;
 
@@ -165,7 +165,7 @@ export const getPosts = async ({ topicIds = [], page = 1, limit = 10, userId, au
       .from('community_posts')
       .select(`
         *,
-        profiles!author_id (id, name),
+        profiles!author_id (id, name, is_bot),
         community_post_topics (
           topic:community_topics (id, name, icon_name, color)
         )
@@ -179,6 +179,10 @@ export const getPosts = async ({ topicIds = [], page = 1, limit = 10, userId, au
 
     if (authorId) {
       query = query.eq('author_id', authorId);
+    }
+
+    if (excludePostType) {
+      query = query.neq('post_type', excludePostType);
     }
 
     const { data, error } = await query.range(from, to);
@@ -218,7 +222,7 @@ export const searchPosts = async (queryStr, type = 'all', page = 1, limit = 10, 
       .from('community_posts')
       .select(`
         *,
-        profiles!author_id (id, name),
+        profiles!author_id (id, name, is_bot),
         community_post_topics (
           topic:community_topics (id, name, icon_name, color)
         )
@@ -263,7 +267,7 @@ export const getPostById = async (postId, userId) => {
     .from('community_posts')
     .select(`
       *,
-      profiles!author_id (id, name),
+      profiles!author_id (id, name, is_bot),
       community_post_topics (
         topic:community_topics (id, name, icon_name, color)
       )
@@ -602,7 +606,7 @@ export const getSavedPosts = async (userId) => {
     .select(`
       post:community_posts (
         *,
-        profiles!author_id (id, name),
+        profiles!author_id (id, name, is_bot),
         community_post_topics (
           topic:community_topics (id, name, icon_name, color)
         )
@@ -1124,4 +1128,68 @@ export const restrictUser = async (userId, restrictionType, reason, adminId, dur
 
   if (error) throw error;
   return data;
+};
+
+// ═══════ AI News Preferences ═══════
+
+export const getNewsPreferences = async (userId) => {
+  try {
+    const { data, error } = await supabase
+      .from('user_news_preferences')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data || { show_ai_news: true, followed_topic_ids: [] };
+  } catch (error) {
+    console.error('Lỗi lấy news preferences:', error.message);
+    return { show_ai_news: true, followed_topic_ids: [] };
+  }
+};
+
+export const updateNewsPreferences = async (userId, updates) => {
+  try {
+    const { data, error } = await supabase
+      .from('user_news_preferences')
+      .upsert(
+        { user_id: userId, ...updates, updated_at: new Date().toISOString() },
+        { onConflict: 'user_id' }
+      )
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Lỗi cập nhật news preferences:', error.message);
+    throw error;
+  }
+};
+
+export const getAiNewsPosts = async ({ page = 1, limit = 10 }) => {
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
+  try {
+    const { data, error } = await supabase
+      .from('community_posts')
+      .select(`
+        *,
+        profiles!author_id (id, name, is_bot),
+        community_post_topics (
+          topic:community_topics (id, name, icon_name, color)
+        )
+      `)
+      .eq('post_type', 'ai_news')
+      .in('status', ['active', 'published'])
+      .order('created_at', { ascending: false })
+      .range(from, to);
+
+    if (error) throw error;
+    return (data || []).map((p) => mapPostData(p, new Set(), new Set()));
+  } catch (error) {
+    console.error('Lỗi lấy bài tin AI:', error.message);
+    throw error;
+  }
 };

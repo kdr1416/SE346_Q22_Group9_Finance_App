@@ -60,11 +60,13 @@ export default function CommunityAdminScreen({ navigation }) {
     reports,
     topics,
     flaggedPosts,
+    aiNewsPosts,
     loading,
     refreshing,
     loadReports,
     loadTopics,
     loadFlaggedPosts,
+    loadAiNewsPosts,
     handleRefresh,
     handleResolveReport,
     handleRestrictUser,
@@ -73,9 +75,11 @@ export default function CommunityAdminScreen({ navigation }) {
     handleDeleteTopic,
     handleApprovePost,
     handleHidePost,
+    handleDeleteAiPost,
+    triggerNewsFetch,
     userRole,
- roleChecked,
- hasAccess,
+    roleChecked,
+    hasAccess,
     checkRole,
   } = useCommunityAdmin();
 
@@ -103,16 +107,18 @@ export default function CommunityAdminScreen({ navigation }) {
   }, [checkRole]);
 
   useEffect(() => {
- if (roleChecked && hasAccess) {
+    if (roleChecked && hasAccess) {
       if (activeTab === 'reports') {
         loadReports(reportsFilter);
       } else if (activeTab === 'ai_review') {
         loadFlaggedPosts();
+      } else if (activeTab === 'ai_news') {
+        loadAiNewsPosts();
       } else {
         loadTopics();
       }
     }
-  }, [activeTab, reportsFilter, loadReports, loadTopics, loadFlaggedPosts, userRole]);
+  }, [activeTab, reportsFilter, loadReports, loadTopics, loadFlaggedPosts, loadAiNewsPosts, userRole]);
 
   // Đang kiểm tra quyền → hiển thị loading
   if (!roleChecked) {
@@ -405,6 +411,43 @@ export default function CommunityAdminScreen({ navigation }) {
     );
   };
 
+  const renderAiNewsItem = ({ item }) => {
+    return (
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <View style={[styles.badge, styles.aiNewsBadge]}>
+            <Text style={styles.badgeText}>🤖 Tin AI</Text>
+          </View>
+          <Text style={styles.cardTime}>
+            {new Date(item.createdAt).toLocaleDateString('vi-VN')} {new Date(item.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+          </Text>
+        </View>
+
+        <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
+        <Text style={styles.cardMeta}>Nguồn: {item.metadata?.source || 'Không rõ'}</Text>
+        {item.topics && item.topics.length > 0 && (
+          <View style={styles.aiCategoriesRow}>
+            {item.topics.map((t, idx) => (
+              <View key={idx} style={[styles.aiCategoryChip, { backgroundColor: t.color + '15', borderColor: t.color + '30' }]}>
+                <Text style={[styles.aiCategoryText, { color: t.color }]}>#{t.name}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        <View style={[styles.buttonRow, { marginTop: 12 }]}>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.hideButton]}
+            onPress={() => handleDeleteAiPost(item.id)}
+          >
+            <Ionicons name="eye-off-outline" size={18} color={Colors.error} />
+            <Text style={styles.hideButtonText}>Ẩn bài tin</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
@@ -416,6 +459,10 @@ export default function CommunityAdminScreen({ navigation }) {
         {activeTab === 'topics' ? (
           <TouchableOpacity style={styles.addTopicHeaderButton} onPress={openCreateTopicModal}>
             <Ionicons name="add-outline" size={24} color={Colors.primary} />
+          </TouchableOpacity>
+        ) : activeTab === 'ai_news' ? (
+          <TouchableOpacity style={styles.addTopicHeaderButton} onPress={triggerNewsFetch}>
+            <Ionicons name="cloud-download-outline" size={24} color={Colors.primary} />
           </TouchableOpacity>
         ) : (
           <View style={{ width: 24 }} />
@@ -435,6 +482,12 @@ export default function CommunityAdminScreen({ navigation }) {
           onPress={() => setActiveTab('ai_review')}
         >
           <Text style={[styles.tabText, activeTab === 'ai_review' && styles.tabTextActive]}>AI Review</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tabButton, activeTab === 'ai_news' && styles.tabButtonActive]}
+          onPress={() => setActiveTab('ai_news')}
+        >
+          <Text style={[styles.tabText, activeTab === 'ai_news' && styles.tabTextActive]}>Tin AI</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tabButton, activeTab === 'topics' && styles.tabButtonActive]}
@@ -481,21 +534,21 @@ export default function CommunityAdminScreen({ navigation }) {
         </View>
       ) : (
         <FlatList
-          data={activeTab === 'reports' ? reports : activeTab === 'ai_review' ? flaggedPosts : topics}
+          data={activeTab === 'reports' ? reports : activeTab === 'ai_review' ? flaggedPosts : activeTab === 'ai_news' ? aiNewsPosts : topics}
           keyExtractor={(item) => item.id}
-          renderItem={activeTab === 'reports' ? renderReportItem : activeTab === 'ai_review' ? renderFlaggedItem : renderTopicItem}
+          renderItem={activeTab === 'reports' ? renderReportItem : activeTab === 'ai_review' ? renderFlaggedItem : activeTab === 'ai_news' ? renderAiNewsItem : renderTopicItem}
           refreshing={refreshing}
           onRefresh={handleRefresh}
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Ionicons
-                name={activeTab === 'reports' ? 'shield-checkmark-outline' : activeTab === 'ai_review' ? 'sparkles-outline' : 'folder-open-outline'}
+                name={activeTab === 'reports' ? 'shield-checkmark-outline' : activeTab === 'ai_review' ? 'sparkles-outline' : activeTab === 'ai_news' ? 'newspaper-outline' : 'folder-open-outline'}
                 size={48}
                 color={Colors.onSurfaceVariant}
               />
               <Text style={styles.emptyText}>
-                {activeTab === 'reports' ? 'Không có báo cáo vi phạm nào.' : activeTab === 'ai_review' ? 'Không có bài nào cần kiểm duyệt.' : 'Chưa có chủ đề nào.'}
+                {activeTab === 'reports' ? 'Không có báo cáo vi phạm nào.' : activeTab === 'ai_review' ? 'Không có bài nào cần kiểm duyệt.' : activeTab === 'ai_news' ? 'Không có bài tin AI nào.' : 'Chưa có chủ đề nào.'}
               </Text>
             </View>
           }
@@ -1060,5 +1113,13 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fontBody_Medium,
     fontSize: 11,
     color: Colors.error,
+  },
+  aiNewsBadge: {
+    backgroundColor: '#0891b2' + '20',
+  },
+  aiNewsBadgeText: {
+    fontFamily: Typography.fontBody_Bold,
+    fontSize: Typography.labelSm,
+    color: '#0891b2',
   },
 });
