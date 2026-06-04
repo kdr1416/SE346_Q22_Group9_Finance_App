@@ -61,6 +61,8 @@ export const mapPostData = (p, likedPostIds = new Set(), savedPostIds = new Set(
     topics: (p.community_post_topics || []).map((pt) => pt.topic).filter(Boolean),
     isLiked: likedPostIds instanceof Set ? likedPostIds.has(p.id) : Array.isArray(likedPostIds) ? likedPostIds.includes(p.id) : !!likedPostIds,
     isSaved: savedPostIds instanceof Set ? savedPostIds.has(p.id) : Array.isArray(savedPostIds) ? savedPostIds.includes(p.id) : !!savedPostIds,
+    metadata: p.metadata || null,
+    isBot: p.profiles?.is_bot || false,
   };
 };
 

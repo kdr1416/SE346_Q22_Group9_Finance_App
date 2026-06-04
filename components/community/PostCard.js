@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { View, Text, StyleSheet, Image, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Image, Pressable, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';
@@ -30,7 +30,12 @@ const PostCard = memo(({ post, onPress, onLike, onSave }) => {
     topics,
     isLiked,
     isSaved,
+    metadata,
   } = post;
+
+  const isAiNews = postType === 'ai_news';
+  const sourceUrl = metadata?.original_url;
+  const sourceName = metadata?.source;
 
   const plainContent = stripHtml(content);
   const avatarLetter = authorName ? authorName.charAt(0).toUpperCase() : 'U';
@@ -39,8 +44,12 @@ const PostCard = memo(({ post, onPress, onLike, onSave }) => {
     <Pressable style={styles.card} onPress={onPress} activeOpacity={0.9}>
       <View style={styles.header}>
         <View style={styles.authorContainer}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{avatarLetter}</Text>
+          <View style={[styles.avatar, isAiNews && styles.avatarBot]}>
+            {isAiNews ? (
+              <Ionicons name="sparkles" size={18} color="#0891b2" />
+            ) : (
+              <Text style={styles.avatarText}>{avatarLetter}</Text>
+            )}
           </View>
           <View style={styles.metaTextContainer}>
             <Text style={styles.authorName}>{authorName}</Text>
@@ -51,16 +60,24 @@ const PostCard = memo(({ post, onPress, onLike, onSave }) => {
         <View
           style={[
             styles.badge,
-            postType === 'share' ? styles.badgeShare : styles.badgeQuestion,
+            isAiNews
+              ? styles.badgeAiNews
+              : postType === 'share'
+                ? styles.badgeShare
+                : styles.badgeQuestion,
           ]}
         >
           <Text
             style={[
               styles.badgeText,
-              postType === 'share' ? styles.badgeTextShare : styles.badgeTextQuestion,
+              isAiNews
+                ? styles.badgeTextAiNews
+                : postType === 'share'
+                  ? styles.badgeTextShare
+                  : styles.badgeTextQuestion,
             ]}
           >
-            {postType === 'share' ? 'Chia sẻ' : 'Hỏi đáp'}
+            {isAiNews ? '🤖 Tin AI' : postType === 'share' ? 'Chia sẻ' : 'Hỏi đáp'}
           </Text>
         </View>
       </View>
@@ -93,6 +110,19 @@ const PostCard = memo(({ post, onPress, onLike, onSave }) => {
             </View>
           ))}
         </View>
+      ) : null}
+
+      {isAiNews && sourceName ? (
+        <Pressable
+          style={styles.sourceRow}
+          onPress={() => sourceUrl && Linking.openURL(sourceUrl)}
+        >
+          <Ionicons name="newspaper-outline" size={14} color={Colors.onSurfaceVariant} />
+          <Text style={styles.sourceText}>Nguồn: {sourceName}</Text>
+          {sourceUrl ? (
+            <Text style={styles.sourceLink}>Đọc bài gốc →</Text>
+          ) : null}
+        </Pressable>
       ) : null}
 
       <View style={styles.divider} />
@@ -272,6 +302,33 @@ const styles = StyleSheet.create({
     fontSize: Typography.bodySm,
     color: Colors.onSurfaceVariant,
     marginLeft: 6,
+  },
+  avatarBot: {
+    backgroundColor: '#0891b2' + '15',
+  },
+  badgeAiNews: {
+    backgroundColor: '#0891b2' + '20',
+  },
+  badgeTextAiNews: {
+    color: '#0891b2',
+  },
+  sourceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: Spacing.sm,
+    paddingVertical: 4,
+  },
+  sourceText: {
+    fontFamily: Typography.fontBody_Medium,
+    fontSize: Typography.labelSm,
+    color: Colors.onSurfaceVariant,
+  },
+  sourceLink: {
+    fontFamily: Typography.fontBody_SemiBold,
+    fontSize: Typography.labelSm,
+    color: '#0891b2',
+    marginLeft: 'auto',
   },
 });
 

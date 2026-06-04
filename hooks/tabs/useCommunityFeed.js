@@ -7,6 +7,8 @@ import {
   toggleLike,
   toggleSave,
   getUserRole,
+  getNewsPreferences,
+  updateNewsPreferences,
 } from '../../services/communityService';
 import { Alert } from 'react-native';
 
@@ -18,6 +20,7 @@ export default function useCommunityFeed(navigation) {
   const [topics, setTopics] = useState([]);
   const [selectedTopicId, setSelectedTopicId] = useState(null);
   const [userRole, setUserRole] = useState(null);
+  const [showAiNews, setShowAiNews] = useState(true);
 
   // State quản lý danh sách bảng tin chính
   const [posts, setPosts] = useState([]);
@@ -71,6 +74,11 @@ export default function useCommunityFeed(navigation) {
       if (userId) {
         const role = await getUserRole(userId);
         setUserRole(role);
+
+        // Load news preferences
+        getNewsPreferences(userId).then(prefs => {
+          setShowAiNews(prefs.show_ai_news !== false);
+        });
       }
     } catch (error) {
       console.error('Lỗi tải dữ liệu ban đầu cộng đồng:', error.message);
@@ -111,6 +119,7 @@ export default function useCommunityFeed(navigation) {
           page: pageNum,
           limit: 10,
           userId,
+          excludePostType: showAiNews ? undefined : 'ai_news',
         });
 
         if (isRefresh || pageNum === 1) {
@@ -135,15 +144,15 @@ export default function useCommunityFeed(navigation) {
         setLoadingMore(false);
       }
     },
-    [selectedTopicId, userId]
+    [selectedTopicId, userId, showAiNews]
   );
 
-  // Tự động tải lại bảng tin khi thay đổi lọc chủ đề
+  // Tự động tải lại bảng tin khi thay đổi lọc chủ đề hoặc bộ lọc tin AI
   useEffect(() => {
     if (!searchActive) {
       fetchFeed(1, false);
     }
-  }, [selectedTopicId, searchActive]);
+  }, [selectedTopicId, searchActive, showAiNews]);
 
   // 3. Nghiệp vụ Tìm kiếm bài viết (Có phân trang)
   const fetchSearch = useCallback(
@@ -365,6 +374,18 @@ export default function useCommunityFeed(navigation) {
     }
   };
 
+  const toggleAiNews = async () => {
+    const newVal = !showAiNews;
+    setShowAiNews(newVal);
+    if (userId) {
+      try {
+        await updateNewsPreferences(userId, { show_ai_news: newVal });
+      } catch (error) {
+        console.error('Lỗi lưu tuỳ chọn tin AI:', error.message);
+      }
+    }
+  };
+
   return {
     topics,
     selectedTopicId,
@@ -384,5 +405,7 @@ export default function useCommunityFeed(navigation) {
     handleTopicSelect,
     handleLikePost,
     handleSavePost,
+    showAiNews,
+    toggleAiNews,
   };
 }
